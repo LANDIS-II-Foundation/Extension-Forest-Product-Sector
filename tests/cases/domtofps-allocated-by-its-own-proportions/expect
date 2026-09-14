@@ -1,0 +1,11 @@
+# SimpleTier1 with a non-zero DOMtoFPS column in the DOM flux log, and
+# DOMtoFPS rows whose mill split (0 / 1.0 / 0) differs sharply from the
+# SnagToFPS split (0.2 / 0 / 0.8), so where the DOM carbon lands is visible.
+#
+# RECORDS CURRENT BEHAVIOUR, which is wrong: ReadHarvestFile() passes the FILE
+# index as the pool key for both DOM columns, so column 19 (DOMtoFPS) is
+# allocated using the SnagToFPS proportions and the DOMtoFPS rows above are
+# never matched by anything. Nothing reports it: the proportions sum to 1, so
+# the Allocated <> Available check stays quiet.
+exit_zero: yes
+matches_recorded: FPS_raw_out.recorded.csv
