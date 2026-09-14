@@ -415,8 +415,17 @@ namespace Landis.Extension.FPS
                     }
                     else
                     {
-                        logf.Write("No proportions found for Forest To Mills, year: {0}, Man Unit: {1}, SpeciesGroup: {2}, File: {3}\n", iyr, mu[irow, icol], spg, iftype);
-
+                        //  Discarding the carbon and carrying on makes an
+                        //  incomplete ledger look like a complete one, and the
+                        //  run still reports success. The usual cause is a
+                        //  species absent from SpeciesGroupTable, which
+                        //  SpeciesGroupList.Find() resolves to group 99, with
+                        //  no group 99 row present to receive it.
+                        throw new ApplicationException(string.Format(
+                            "No proportions found in ProportionsFromForestToMills for year {0}, "
+                            + "management unit {1}, species group {2}, file {3}. "
+                            + "{4} tonnes of carbon would be discarded.",
+                            iyr, mu[irow, icol], spg, iftype, bioh));
                     }
                     double diff = AllocatedAmount - bioh;
                     if ((diff > 0.0001) || (diff < -0.0001))
