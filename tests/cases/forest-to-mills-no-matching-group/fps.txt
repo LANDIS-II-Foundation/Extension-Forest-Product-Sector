@@ -1,0 +1,91 @@
+>> Tables formatted in Notepadd++ v8.5.4
+>> Example Tier 1 IPCC production approach with simple decay of commodity classes
+LandisData  "FPS"
+
+>> Length of cell side in m, used to convert m2 values to totals, should be the same as in ForCS run. Set to 1 for no unit conversion.
+CellLength 100
+
+>> Number of years past the last harvest to simulate
+YearsPostHarvest 10
+
+HarvestFileLive	"log_FluxBio.csv"
+HarvestFileDOM	"log_FluxDOM.csv"
+ManagementUnits	"manunits.gis" 
+
+OutputInterval  1
+
+SpeciesGroupTable
+>>Group: up to 2. Use word "all" to mean all species
+>>  all     99     ALL
+>>Species  Group  GroupName
+>>----------------------------------------------
+ all	99	all
+ 
+
+ProportionsFromForestToMills
+>>							 
+>> Time		Unit	Species	Pool 		Mill Code	Mill Name
+>> Start 	Code 	Group	(From) 		(To)			(To)			SPG X
+>>---------------------------------------------------------------------------------------
+	0		1			98	BioToFPS	1		SawnwoodMill			0.5
+	0		1			98	BioToFPS	2		WoodbasedPanelsMill		0.25
+	0		1			98	BioToFPS	3		Chipmill				0.25
+	0		1			99	SnagToFPS	1		SawnwoodMill			0.2
+	0		1			99	SnagToFPS	2		WoodbasedPanelsMill		0.0
+	0		1			99	SnagToFPS	3		Chipmill				0.8
+
+ProportionsFromMillsToPrimaryWoodProducts
+>> Time	Mill Code 	Mill Name 		Primary		Primary			Mill X
+>> Start (From)		(From)			Code (To)	Name (To)
+>>---------------------------------------------------------------------------------------
+	0	1		SawnwoodMill		104			Sawnwood			0.5
+	0	1		SawnwoodMill		1002		InstantEmission		0.5
+	0	2		WoodbasedPanelsMill	106			Panels				0.5
+	0	2		WoodbasedPanelsMill	1002		InstantEmission		0.5
+	0	3		Chipmill			105			Chips				0.7
+	0	3		Chipmill			1002		InstantEmission		0.3
+
+ProportionsFromPrimaryToMarkets
+>>Time	Primary			Primary			Market	Market Name		Market X
+>>Start	Code (From)		Name (From)		(To)	(To)
+>>---------------------------------------------------------------------------------------
+	0	105				Chips			300		Global			1
+	0	104				Sawnwood		300		Global			1
+	0	106				Panels			300		Global			1
+	
+ProportionsFromPrimaryToSecondaryProducts
+>>Time	Market		Primary			Primary		Secondary	Secondary			Secondary X		Retirement  Param. 1 Param. 2
+>>Start	Code (From)	Code (From)		Name (From)	Code (To)	Name (To)	 						function
+>>------------------------------------------------------------------------------------------------------------------------------
+	0	300			105				Chips		200		PaperPackaging			1				exponential		2	-99
+	0	300			104				Sawnwood	204		Sawnwood				1				exponential		35	-99
+	0	300			106				Panels		209		Panels					1				exponential		25	-99
+
+
+ProportionsFromSecondaryProductsToRetirementOptions
+>> Time	Market		Secondary	Secondary			Retirement	Retirement		Retirement X
+>> Start Code(From)	Code(From)	Name (From)			Code(To)	Name(To)	
+>>---------------------------------------------------------------------------------------
+	0	300			200		PaperPackaging			1002	InstantEmission			1
+	0	300			204		Sawnwood				1002	InstantEmission			1
+	0	300			209		Panels					1002	InstantEmission			1
+
+ProportionsFromRetirementToDisposal
+>>Time 	Retirement	Retirement		Disposal	Disposal			Disposal X	Half-life	Respiration	Respiration
+>>Start	Code(From)	Name(From)		Code(To)	Name (To)						 			Code		Name
+>>---------------------------------------------------------------------------------------
+	0	1002		InstantEmission		2006	E_CO2					1			-99			-99
+
+
+Substitution
+>>	Substitution = Primary * SubstitutionRatio * DisplacementFactor
+>>Time	Market		Primary	Primary				Substitution	Displacement
+>>Start				Code	Name				Ratio			Factor
+>>---------------------------------------------------------------------------------------
+	0	300			104		Sawnwood					0				0
+	
+LandfillGasManagement
+>>TimeStart	Respiration	Landfills 	Capture		Oxidation
+>>Start		Code		With LFGM	Efficiency
+>>---------------------------------------------------------------------------------------
+0		1500		-999		-999		0.22
