@@ -7,6 +7,8 @@
 #   fps.txt  a configuration, normally the SimpleTier1 example with one token
 #            changed, so that the case isolates a single behaviour
 #   expect   what that configuration should do, as key: value lines
+#   log_Flux*.csv  optional; overrides the SimpleTier1 input of the same name,
+#            for cases the shipped inputs cannot exercise
 #
 # Supported expectations:
 #   exit_zero: yes|no          FPSM exits 0, or does not
@@ -15,6 +17,8 @@
 #   log_empty: yes             FPS_log.txt is empty
 #   matches_example: <name>    FPS_raw_out.csv is byte-identical to the output
 #                              committed under deploy/examples/<name>/
+#   matches_recorded: <file>   FPS_raw_out.csv is byte-identical to <file> in
+#                              the case directory
 #
 # Usage: tests/run-cases.sh <build-output-dir> <landis-image>
 
@@ -34,6 +38,11 @@ for case_dir in "$ROOT"/tests/cases/*/; do
 
   work=$(mktemp -d)
   cp "$INPUTS"/log_Flux*.csv "$work/"
+  #  A case may ship its own flux logs where the example inputs cannot
+  #  exercise the behaviour under test.
+  for override in "$case_dir"log_Flux*.csv; do
+    [ -e "$override" ] && cp "$override" "$work/"
+  done
   cp "$case_dir/fps.txt" "$work/"
   cp "$BUILD_DIR"/*.dll "$BUILD_DIR"/*.json "$work/"
 
@@ -70,9 +79,22 @@ for case_dir in "$ROOT"/tests/cases/*/; do
           diff "$ROOT/deploy/examples/$val/FPS_raw_out.csv" "$work/FPS_raw_out.csv" | head -10
         fi
         ;;
+      matches_recorded)
+        if ! diff -q "$case_dir/$val" "$work/FPS_raw_out.csv" >/dev/null 2>&1; then
+          fail "FPS_raw_out.csv differs from the recorded $val"
+          diff "$case_dir/$val" "$work/FPS_raw_out.csv" | head -10
+        fi
+        ;;
       *) fail "unknown expectation '$key'" ;;
     esac
   done < "$case_dir/expect"
+
+  #  Keep the outputs so a failing run can be inspected, and so a new case's
+  #  behaviour can be recorded from CI.
+  if [ -n "${CASE_RESULTS:-}" ]; then
+    mkdir -p "$CASE_RESULTS/$name"
+    cp "$work"/FPS_*.csv "$work"/FPS_log.txt "$CASE_RESULTS/$name/" 2>/dev/null || true
+  fi
 
   rm -rf "$work"
   echo "::endgroup::"

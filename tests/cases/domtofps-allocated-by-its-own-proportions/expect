@@ -1,0 +1,10 @@
+# SimpleTier1 with a non-zero DOMtoFPS column in the DOM flux log, and
+# DOMtoFPS rows whose mill split (0 / 1.0 / 0) differs sharply from the
+# SnagToFPS split (0.2 / 0 / 0.8), so where the DOM carbon lands is visible.
+#
+# The DOM column is now allocated by its own proportions, so the carbon goes
+# to the panel mill rather than being split between sawnwood and chips as the
+# snag proportions direct. Against the previously recorded output that moves
+# roughly 1,400 t C into the panel-derived pool.
+exit_zero: yes
+matches_recorded: FPS_raw_out.recorded.csv

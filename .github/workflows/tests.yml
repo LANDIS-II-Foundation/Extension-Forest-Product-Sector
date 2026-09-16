@@ -32,4 +32,11 @@ jobs:
         run: |
           docker pull -q "$LANDIS_IMAGE"
           echo "image: $(docker inspect --format '{{index .RepoDigests 0}}' "$LANDIS_IMAGE")"
-          tests/run-cases.sh bin/Release/net8.0 "$LANDIS_IMAGE"
+          CASE_RESULTS="$RUNNER_TEMP/case-results" tests/run-cases.sh bin/Release/net8.0 "$LANDIS_IMAGE"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: case-outputs
+          path: ${{ runner.temp }}/case-results
+          if-no-files-found: warn
