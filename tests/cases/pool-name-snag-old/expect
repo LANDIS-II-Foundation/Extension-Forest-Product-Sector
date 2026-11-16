@@ -1,0 +1,4 @@
+# SimpleTier1 with SnagsToFPS written SnagToFPS, the pool's name before it took
+# the ForCS column's. The run fails and the error gives the new name.
+exit_zero: no
+stdout_contains: "SnagToFPS" is now "SnagsToFPS"

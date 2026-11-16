@@ -1,4 +1,5 @@
 # SimpleTier1 with SnagToFPS written SnagsToFPS, the name of the column the
-# pool reads in ForCS's log_FluxDOM.csv. The parser does not accept it.
-exit_zero: no
-stdout_contains: "SnagsToFPS" is not a valid pool name
+# pool reads in ForCS's log_FluxDOM.csv, which is now the pool's name.
+# The run produces exactly the output of the example.
+exit_zero: yes
+matches_example: SimpleTier1Ex

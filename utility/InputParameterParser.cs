@@ -478,7 +478,8 @@ namespace Landis.Extension.FPS
 
         private int GetFPSPool(InputVar<string> sName)
         {
-            string[] toFPS = new string[] { "BioToFPS", "SnagToFPS", "DOMtoFPS" };
+            //  The names of the ForCS log columns these pools read.
+            string[] toFPS = new string[] { "BioToFPS", "SnagsToFPS", "DOMtoFPS" };
             for (int i = 0; i < toFPS.Length; i++)
             {
                 //  Ordinal rather than culture-aware: under a Turkish locale a
@@ -486,6 +487,11 @@ namespace Landis.Extension.FPS
                 if (string.Equals(sName.Value, toFPS[i], System.StringComparison.OrdinalIgnoreCase))
                     return (i + 1);
             }
+            //  The snag pool was SnagToFPS until it took the ForCS column's name.
+            if (string.Equals(sName.Value, "SnagToFPS", System.StringComparison.OrdinalIgnoreCase))
+                throw new InputValueException(sName.Value,
+                    "\"{0}\" is now \"SnagsToFPS\", the name of the column in ForCS's log_FluxDOM.csv",
+                    sName.Value);
             throw new InputValueException(sName.Value,
                 "\"{0}\" is not a valid pool name. Must be one of: {1}",
                 sName.Value, string.Join(", ", toFPS));
