@@ -37,14 +37,14 @@ ProportionsFromForestToMills
 	0		1			91	BioToFPS	5		HardwoodLumberMill		0.4
 	0		1			91	BioToFPS	6		HardwoodPlywoodMill		0.2
 	0		1			91	BioToFPS	1002	CombustionFuel			0.4
-	0		1			90	SnagToFPS	1		SoftwoodLumberMill		0.1
-	0		1			90	SnagToFPS	2		ChipMill				0.2
-	0		1			90	SnagToFPS	3		SoftwoodPlywoodMill		0
-	0		1			90	SnagToFPS	1002	CombustionFuel			0.7
-	0		1			91	SnagToFPS	5		HardwoodLumberMill		0.1
-	0		1			91	SnagToFPS	2		ChipMill				0.2
-	0		1			91	SnagToFPS	6		HardwoodPlywoodMill		0
-	0		1			91	SnagToFPS	1002	CombustionFuel			0.7
+	0		1			90	SnagsToFPS	1		SoftwoodLumberMill		0.1
+	0		1			90	SnagsToFPS	2		ChipMill				0.2
+	0		1			90	SnagsToFPS	3		SoftwoodPlywoodMill		0
+	0		1			90	SnagsToFPS	1002	CombustionFuel			0.7
+	0		1			91	SnagsToFPS	5		HardwoodLumberMill		0.1
+	0		1			91	SnagsToFPS	2		ChipMill				0.2
+	0		1			91	SnagsToFPS	6		HardwoodPlywoodMill		0
+	0		1			91	SnagsToFPS	1002	CombustionFuel			0.7
 	11		1			90	BioToFPS	1		SoftwoodLumberMill		0.5
 	11		1			90	BioToFPS	2		ChipMill				0
 	11		1			90	BioToFPS	3		SoftwoodPlywoodMill		0.2
@@ -53,10 +53,10 @@ ProportionsFromForestToMills
 	11		1			91	BioToFPS	5		HardwoodLumberMill		0.4
 	11		1			91	BioToFPS	6		HardwoodPlywoodMill		0.2
 	11		1			91	BioToFPS	1002	CombustionFuel			0.4
-	11		1			91	SnagToFPS	5		HardwoodLumberMill		0.1
-	11		1			91	SnagToFPS	2		ChipMill				0.2
-	11		1			91	SnagToFPS	6		HardwoodPlywoodMill		0
-	11		1			91	SnagToFPS	1002	CombustionFuel			0.7
+	11		1			91	SnagsToFPS	5		HardwoodLumberMill		0.1
+	11		1			91	SnagsToFPS	2		ChipMill				0.2
+	11		1			91	SnagsToFPS	6		HardwoodPlywoodMill		0
+	11		1			91	SnagsToFPS	1002	CombustionFuel			0.7
 
 
 ProportionsFromMillsToPrimaryWoodProducts
