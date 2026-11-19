@@ -222,7 +222,6 @@ Substitution
 	40	301			106		Plywood					0.05			1.1
 	40	301			108		HWLumber				0.05			1.1
 	40	301			109		HWPlywood				0.05			1.1
-	40	300			105		Chips					0				0
 LandfillGasManagement
 >>TimeStart	Respiration	Landfills 	Capture		Oxidation
 >>Start		Code		With LFGM	Efficiency
