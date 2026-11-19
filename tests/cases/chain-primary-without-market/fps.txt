@@ -10,7 +10,7 @@ YearsPostHarvest 10
 
 HarvestFileLive	"log_FluxBio.csv"
 HarvestFileDOM	"log_FluxDOM.csv"
-ManagementUnits	"manunits.gis" 
+ManagementUnits	none 
 
 OutputInterval  1
 
