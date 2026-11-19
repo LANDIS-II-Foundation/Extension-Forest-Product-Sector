@@ -160,6 +160,7 @@ namespace Landis.Extension.FPS
                 while (!AtEndOfInput && (CurrentName != Names.ForestToMill))
                 {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.SpeciesGroupTable);
                 ReadValue(speciesName, currentLine);
 
                 ReadValue(group, currentLine);
@@ -197,6 +198,7 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.MilltoPrimary))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.ForestToMill);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.ForestToMill);
@@ -247,6 +249,7 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.PrimarytoMarket))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.MilltoPrimary);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.MilltoPrimary);
@@ -288,6 +291,7 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.PrimaryToSecond))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.PrimarytoMarket);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.PrimarytoMarket);
@@ -334,6 +338,7 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.SecondToRetirement))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.PrimaryToSecond);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.PrimaryToSecond);
@@ -383,6 +388,7 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.RetirementToDisposal))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.SecondToRetirement);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.SecondToRetirement);
@@ -432,6 +438,7 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.Substitution))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.RetirementToDisposal);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.RetirementToDisposal);
@@ -473,6 +480,7 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.LandfillGas))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.Substitution);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.Substitution);
@@ -516,6 +524,7 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput)
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.LandfillGas);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.LandfillGas);
@@ -1146,6 +1155,19 @@ namespace Landis.Extension.FPS
 
         }
 
+        //  A row that repeats an earlier row of its table exactly is counted
+        //  twice (a proportion) or ignored (Substitution, LandfillGasManagement),
+        //  so it is refused. Rows compare without case or spacing.
+        private Dictionary<string, int> rowsSeen = new Dictionary<string, int>();
+        private void CheckRepeatedRow(string table)
+        {
+            string key = table + "|" + string.Join(" ", CurrentLine.ToLowerInvariant().Split((char[])null, System.StringSplitOptions.RemoveEmptyEntries));
+            int earlier;
+            if (rowsSeen.TryGetValue(key, out earlier))
+                throw NewParseException("This row repeats line {0} of {1} exactly. FPSM would count it twice or ignore it; remove one of them.", earlier, table);
+            rowsSeen[key] = LineNumber;
+        }
+
         //  User codes run from 1 to 999. Where a pool is allowed, a code of 1000
         //  or more must be one of FixedPools.
         private static void CheckCode(InputVar<int> code, string what, bool poolAllowed)
@@ -1259,7 +1281,8 @@ namespace Landis.Extension.FPS
                 parameters.ListPrimarySecondary.Add(tFM);
             }
             //  A second row for the same year, market and primary product was
-            //  ignored; refuse it unless it repeats the first.
+            //  ignored. One with different factors is refused here; an exact
+            //  repeat is refused by CheckRepeatedRow().
             else if (tFM.SubstitutionFactor != dSub || tFM.DisplacementFactor != dDisplace)
             {
                 throw new InputValueException(nMill.ToString(), "{0} has a second row for year {1}, market {2}, primary product {3}, with different factors ({4}, {5}; the first row has {6}, {7}). FPSM uses only the first.",
@@ -1300,8 +1323,8 @@ namespace Landis.Extension.FPS
             LFGasManagement tFM = null;   //SB: only one type of gas management per year (unlike other lists)
 
             //  FindLFGasManagementList() returns the first row for a year, so a
-            //  second row for the same year was ignored; refuse it unless it
-            //  repeats the first.
+            //  second row for the same year was ignored. One with different values
+            //  is refused here; an exact repeat is refused by CheckRepeatedRow().
             foreach (LFGasManagement earlier in parameters.ListLFGasManagement.ListLFGasManagement)
             {
                 if (earlier.BeginTime != nYr)

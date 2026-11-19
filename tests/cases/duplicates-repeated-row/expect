@@ -1,0 +1,4 @@
+# SimpleTier1 with a forest-to-mills row repeated exactly. A repeated proportion
+# is counted twice; this one is 0, so the run used to go ahead.
+exit_zero: no
+stdout_contains: This row repeats line 34 of ProportionsFromForestToMills exactly
