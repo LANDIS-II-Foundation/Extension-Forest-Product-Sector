@@ -514,6 +514,7 @@ namespace Landis.Extension.FPS
         private void CheckTables()
         {
             List<string> problems = new List<string>();
+            CheckUnusedRows(problems);
             CheckProportionTotals(problems);
             CheckRetirementPairs(problems);
             CheckDestinations(problems);
@@ -574,7 +575,7 @@ namespace Landis.Extension.FPS
                         row.Table, row.Line, row.To, row.ToName, row.Market, row.Year, Names.SecondToRetirement));
                 }
                 //  Rows for a product that is neither made nor recycled into in
-                //  this market are never used, so they cannot lose carbon.
+                //  this market are never used; CheckUnusedRows() reports them.
                 if (row.Table == Names.SecondToRetirement
                     && !HasMadeRow(row.Year, row.Market, row.From)
                     && (HasMadeRow(-1, row.Market, row.From) || IsRecycledInto(row.Market, row.From))
@@ -656,6 +657,25 @@ namespace Landis.Extension.FPS
                     : string.Format("has rows for it only from year {0}", start);
                 problems.Add(string.Format("{0}, line {1}: sends carbon to {2} from year {3}, but {4} {5}, so that carbon would be lost.",
                     row.Table, row.Line, what, row.Year, next, has));
+            }
+        }
+
+        //  Rows that can never receive carbon. They change no result, but each
+        //  one means a code is not what the table's author meant, so they are
+        //  refused like any other mistake.
+        private void CheckUnusedRows(List<string> problems)
+        {
+            HashSet<string> reported = new HashSet<string>();
+            foreach (TableRow row in tableRows)
+            {
+                if (NeverReceivesCarbon(row))
+                    problems.Add(string.Format("{0}, line {1}: starts from pool {2} ({3}), but FPSM sends carbon in pools of 1000 and above straight to {4}, so this row is never used. Remove it.",
+                        row.Table, row.Line, row.From, row.FromName, Names.RetirementToDisposal));
+                else if (row.Table == Names.SecondToRetirement
+                    && !HasMadeRow(-1, row.Market, row.From) && !IsRecycledInto(row.Market, row.From)
+                    && reported.Add(row.Market + "|" + row.From))
+                    problems.Add(string.Format("{0}, line {1}: secondary product {2} ({3}) is neither made in market {4} by {5} nor recycled into there, so its retirement rows are never used. Remove them, or check the market and product codes.",
+                        row.Table, row.Line, row.From, row.FromName, row.Market, Names.PrimaryToSecond));
             }
         }
 

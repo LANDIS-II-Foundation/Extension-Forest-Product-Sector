@@ -1,0 +1,4 @@
+# SimpleTier1 with retirement rows for product 205, which nothing makes or
+# recycles into in market 300, as in the ComplexTier3 example until this change.
+exit_zero: no
+stdout_contains: secondary product 205 (Furniture) is neither made in market 300 by ProportionsFromPrimaryToSecondaryProducts nor recycled into there

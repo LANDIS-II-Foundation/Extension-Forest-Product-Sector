@@ -1,0 +1,4 @@
+# SimpleTier1 with a market row starting from InstantEmission (1002), as in the
+# ComplexTier3 example until this change. It was never used.
+exit_zero: no
+stdout_contains: line 55: starts from pool 1002 (InstantEmission), but FPSM sends carbon in pools of 1000 and above straight to ProportionsFromRetirementToDisposal

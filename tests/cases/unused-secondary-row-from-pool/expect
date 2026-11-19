@@ -1,0 +1,4 @@
+# SimpleTier1 with a primary-to-secondary row starting from InstantEmission
+# (1002). It was never used.
+exit_zero: no
+stdout_contains: line 63: starts from pool 1002 (InstantEmission), but FPSM sends carbon in pools of 1000 and above straight to ProportionsFromRetirementToDisposal
