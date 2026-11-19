@@ -24,6 +24,10 @@
 #                              committed under deploy/examples/<name>/
 #   matches_recorded: <file>   FPS_raw_out.csv is byte-identical to <file> in
 #                              the case directory
+#   reports_through: <year>    tests/check-reporting-horizon.R passes: every
+#                              pool reports each year through <year>, the last
+#                              harvest year plus YearsPostHarvest, and no row
+#                              is dated after it
 #
 # Usage: tests/run-cases.sh <build-output-dir> <landis-image>
 
@@ -95,6 +99,9 @@ for case_dir in "$ROOT"/tests/cases/*/; do
           diff "$case_dir/$val" "$work/FPS_raw_out.csv" | head -10
         fi
         ;;
+      reports_through)
+        Rscript "$ROOT/tests/check-reporting-horizon.R" "$work" "$val" | sed 's/^/  | /'
+        [ "${PIPESTATUS[0]}" -eq 0 ] || fail "pools are not reported through year $val" ;;
       *) fail "unknown expectation '$key'" ;;
     esac
   done < "$case_dir/expect"
