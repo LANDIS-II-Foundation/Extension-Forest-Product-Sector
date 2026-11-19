@@ -4,12 +4,13 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-//using Landis.SpatialModeling;
+using Landis.SpatialModeling;
 using Landis.Utilities;
 using Landis.Core;
 using System.Globalization;
 using System.IO;
-//using OSGeo.GDAL;
+using System.Reflection;
+using System.Runtime.InteropServices;
 
 
 
@@ -159,43 +160,119 @@ namespace Landis.Extension.FPS
         //    outFile.Write("Year, Market,  Pool, AmountEmittedOrRetained\n");
         //}
 
+        //  The management unit of each cell, as mu[row - 1, column - 1] with rows
+        //  and columns numbered as in the ForCS flux logs. Without a map, every
+        //  cell is unit 1 and the harvest loop looks only at mu[0, 0].
         static int[,] ReadManagementUnitFile(string mufile)
         {
-            //    GdalConfiguration.ConfigureGdal();
-            //    //GdalConfiguration.ConfigureOgr();
-            //    Gdal.AllRegister();
-            int[,] mu = new int[1, 1];
-            if (mufile == "-999")
+            if (mufile == InputParameters.NoManagementUnitMap)
+                return new int[,] { { 1 } };
+
+            try
             {
-                mu[0, 0] = 1;
+                IRasterFactory factory = OpenRasterFactory();
+                using (IInputRaster<IntPixel> map = factory.OpenRaster<IntPixel>(mufile))
+                {
+                    Dimensions dims = map.Dimensions;
+                    int[,] mu = new int[dims.Rows, dims.Columns];
+                    IntPixel pixel = map.BufferPixel;
+                    //  Pixels come row by row from the top left, the order in which
+                    //  LANDIS-II numbers its rows and columns.
+                    for (int row = 0; row < dims.Rows; row++)
+                    {
+                        for (int col = 0; col < dims.Columns; col++)
+                        {
+                            map.ReadBufferPixel();
+                            mu[row, col] = pixel.MapCode.Value;
+                        }
+                    }
+                    return mu;
+                }
             }
-            else
+            catch (Exception err)
             {
-                //    Dataset dataset = Gdal.Open(mufile, Access.GA_ReadOnly);
-                //    Band band = dataset.GetRasterBand(1);
-                //    int width = band.XSize;
-                //    int height = band.YSize;
-                //    int size = width * height;
-                //    float[] data = new float[size];
-                //    int[,] mu = new int[width, height];
-                //int[,] mu = new int[1, 1];
-                mu[0, 0] = 1;
+                throw new ApplicationException(string.Format("Could not read the ManagementUnits map \"{0}\": {1}",
+                    mufile, err.GetBaseException().Message), err);
+            }
+        }
+
+        //  The raster factory LANDIS-II reads its maps with. Its GDAL driver is
+        //  built separately for Windows and Linux with the same types, so the one
+        //  for this system is loaded from beside FPSM when a map is read.
+        static IRasterFactory OpenRasterFactory()
+        {
+            string driver = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? "Landis.RasterIO.Gdal.dll" : "Landis.RasterIO.Gdal.Linux.dll";
+            Assembly gdal = Assembly.LoadFrom(Path.Combine(AppContext.BaseDirectory, driver));
+            return (IRasterFactory)Activator.CreateInstance(gdal.GetType("Landis.RasterIO.Gdal.RasterFactory", true));
+        }
+
+        //  With a ManagementUnits map, every cell that sends carbon to FPSM must lie
+        //  on the map and have a unit, and every year, unit, species group and pool
+        //  with carbon must have ProportionsFromForestToMills rows that apply.
+        //  Checked before any carbon is allocated; every gap is listed.
+        static void CheckManagementUnits(IInputParameters parameters, int[,] mu)
+        {
+            if (parameters.ManagementUnitFile == InputParameters.NoManagementUnitMap)
+                return;
+
+            int rows = mu.GetLength(0);
+            int columns = mu.GetLength(1);
+            List<string> problems = new List<string>();
+            HashSet<string> reported = new HashSet<string>();
+
+            //  The files and carbon columns the harvest loop in RunFPS reads, and the
+            //  pool it looks each column's rows up under (1 BioToFPS, 2 SnagsToFPS, 3 DOMtoFPS).
+            string[] files = new string[] { parameters.HarvestFileLive, parameters.HarvestFileDOM };
+            int[][] carbonColumns = new int[][] { new int[] { 16 }, new int[] { 18, 19 } };
+            int[][] pools = new int[][] { new int[] { 1 }, new int[] { 2, 3 } };
+            for (int f = 0; f < files.Length; f++)
+            {
+                string[] header;
+                using (StreamReader headerfile = File.OpenText(files[f]))
+                    header = headerfile.ReadLine().Split(',');
+                StreamReader fluxfile = OpenFileToRead(files[f]);
+                string[] values;
+                while ((values = GetValuesFromFile(fluxfile)) != null)
+                {
+                    int year = int.Parse(values[0].Trim(), CultureInfo.InvariantCulture);
+                    int row = int.Parse(values[1].Trim(), CultureInfo.InvariantCulture);
+                    int col = int.Parse(values[2].Trim(), CultureInfo.InvariantCulture);
+                    string species = values[4];
+                    for (int k = 0; k < carbonColumns[f].Length; k++)
+                    {
+                        int c = carbonColumns[f][k];
+                        int pool = pools[f][k];
+                        if (double.Parse(values[c].Trim(), CultureInfo.InvariantCulture) <= 0)
+                            continue;
+                        if (row < 1 || col < 1 || row > rows || col > columns)
+                        {
+                            if (reported.Add(string.Format("cell|{0}|{1}", row, col)))
+                                problems.Add(string.Format("{0}: row {1}, column {2} sends carbon to FPSM but lies outside the ManagementUnits map ({3} rows by {4} columns).",
+                                    files[f], row, col, rows, columns));
+                            continue;
+                        }
+                        int unit = mu[row - 1, col - 1];
+                        if (unit < 1)
+                        {
+                            if (reported.Add(string.Format("cell|{0}|{1}", row, col)))
+                                problems.Add(string.Format("{0}: row {1}, column {2} sends carbon to FPSM but has no management unit (map value {3}).",
+                                    files[f], row, col, unit));
+                            continue;
+                        }
+                        int group = parameters.ListSPG.Find(species);
+                        if (parameters.ListFM.FindForestMillList(year, unit, group, pool, 2) == null
+                            && reported.Add(string.Format("rows|{0}|{1}|{2}", unit, group, header[c].Trim())))
+                            problems.Add(string.Format("ProportionsFromForestToMills has no rows for management unit {0}, species group {1} that apply to {2} in year {3} (first at row {4}, column {5} of {6}).",
+                                unit, group, header[c].Trim(), year, row, col, files[f]));
+                    }
+                }
+                fluxfile.Close();
             }
 
-            //    var dataArr = band.ReadRaster(0, 0, width, height, data, width, height, 0, 0);
-
-            //    int i, j;
-            //    for (i = 0; i < width; i++)
-            //    {
-            //        for (j = 0; j < height; j++)
-            //        {
-            //            float value = data[i + j * width];
-            //            mu[i, j] = (int) value;
-
-            //        }
-            //    }
-            return mu;
-
+            if (problems.Count > 0)
+                throw new ApplicationException(string.Format("{0} problem{1} with the ManagementUnits map \"{2}\":\n  {3}",
+                    problems.Count, problems.Count == 1 ? "" : "s", parameters.ManagementUnitFile, string.Join("\n  ", problems)));
         }
 
         public static void RunFPS(string inFile)
@@ -222,8 +299,8 @@ namespace Landis.Extension.FPS
                 new string[] { "Time", "row", "column", "species", "SnagsToFPS", "DOMtoFPS" }, new int[] { 0, 1, 2 }, new int[] { 18, 19 });
 
             //load management unit file
-            //parameters.ManagementUnitFile;
             int[,] mu = ReadManagementUnitFile(parameters.ManagementUnitFile);
+            CheckManagementUnits(parameters, mu);
 
 
             //read in the files containing the harvest. Divide up the harvest as we go, because we don't need to know where things come from.

@@ -1,4 +1,5 @@
-# SimpleTier1 with one forest-to-mills row for management unit 2. FPSM does not
-# read the ManagementUnits map and stored the row as unit 1.
+# SimpleTier1 with one forest-to-mills row for management unit 2 and
+# ManagementUnits none, which puts every cell in unit 1, so the row can never
+# apply.
 exit_zero: no
-stdout_contains: Management unit 2: FPSM does not read the ManagementUnits map yet
+stdout_contains: Management unit 2: ManagementUnits is none, so every cell is unit 1

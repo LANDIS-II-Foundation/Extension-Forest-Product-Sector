@@ -353,8 +353,9 @@ namespace Landis.Extension.FPS
 
             if (iyr > parameters.MaxHarvYear) parameters.MaxHarvYear = iyr;
 
-            //if not using spatial file, then set irow and icol to 0
-            if (parameters.ManagementUnitFile == "-999")
+            //  Without a map every cell is unit 1, held in mu[0, 0]. With one, the
+            //  cell is on the map: CheckManagementUnits() has checked it.
+            if (parameters.ManagementUnitFile == InputParameters.NoManagementUnitMap)
             { irow = 0; icol = 0; }
 
             int usecol = harvc;

@@ -1,0 +1,5 @@
+# SimpleTier1's rows, all for unit 1, with a map that puts columns 5-9 in
+# unit 2: their carbon has no rows to follow, so the run stops before any
+# carbon is allocated and names the unit.
+exit_zero: no
+stdout_contains: has no rows for management unit 2

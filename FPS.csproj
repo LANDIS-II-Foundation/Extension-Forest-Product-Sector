@@ -10,6 +10,9 @@
     <Version>1.1</Version>
     <AssemblyVersion>1.1</AssemblyVersion>
     <FileVersion>1.1</FileVersion>
+    <!-- Gdal.Core keeps its Windows native files under the win10-x64 runtime
+         identifier, which .NET 8 does not search unless the RID graph is used. -->
+    <UseRidGraph>true</UseRidGraph>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -43,6 +46,11 @@
 
   <ItemGroup>
     <PackageReference Include="Landis.Core" Version="3.0.1" />
+    <!-- The raster I/O LANDIS-II reads maps with, for the ManagementUnits map.
+         The Windows and Linux GDAL drivers define the same types; Main.cs loads
+         the one for this system at run time. Gdal.Core brings the native files. -->
+    <PackageReference Include="Landis.RasterIO.Gdal" Version="2.0.1" />
+    <PackageReference Include="Landis.RasterIO.Gdal.Linux" Version="2.0.0" />
   </ItemGroup>
 
   <ItemGroup>

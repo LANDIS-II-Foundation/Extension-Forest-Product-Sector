@@ -74,6 +74,7 @@ namespace Landis.Extension.FPS
             public int Year;
             public int Market;      //  NoMarket where the table has no market column
             public int Group;       //  species group; forest-to-mills only
+            public int Unit;        //  management unit; forest-to-mills only, else 1
             public int From;        //  code the row moves carbon out of
             public string FromName;
             public int To;          //  code the row moves carbon into
@@ -134,8 +135,11 @@ namespace Landis.Extension.FPS
 
             InputVar<string> ManagementUnitFile = new InputVar<string>(Names.ManagementUnitFile);
             ReadVar(ManagementUnitFile);
-            //parameters.ManagementUnitFile = ManagementUnitFile.Value;
-            parameters.ManagementUnitFile = "-999";
+            //  A map of management units, or "none" for every cell in unit 1.
+            bool unitMap = !string.Equals(ManagementUnitFile.Value.Actual.Trim(), InputParameters.NoManagementUnitMap, System.StringComparison.OrdinalIgnoreCase);
+            if (unitMap && !System.IO.File.Exists(ManagementUnitFile.Value.Actual))
+                throw new InputValueException(ManagementUnitFile.Value.String, "The ManagementUnits map \"{0}\" does not exist. Give the path of an integer map of management units, or none to put every cell in unit 1", ManagementUnitFile.Value.Actual);
+            parameters.ManagementUnitFile = unitMap ? ManagementUnitFile.Value.Actual : InputParameters.NoManagementUnitMap;
 
             InputVar<int> OutputInt = new InputVar<int>(Names.OutputInt);
             ReadVar(OutputInt);
@@ -205,10 +209,12 @@ namespace Landis.Extension.FPS
                 firstYear = 1;   //will have stopped before getting here...
  
                 ReadValue(nMU, currentLine);
-                //  The ManagementUnits map is not read: every cell is unit 1, and every
-                //  row was stored as unit 1 whatever this column said.
-                if (nMU.Value.Actual != 1)
-                    throw new InputValueException(nMU.Value.String, "Management unit {0}: FPSM does not read the ManagementUnits map yet and treats every cell as unit 1, so every row must be for unit 1", nMU.Value.Actual);
+                //  Units are the codes of the ManagementUnits map, 1 to 999; without a
+                //  map every cell is unit 1.
+                if (nMU.Value.Actual < 1 || nMU.Value.Actual >= FirstSpecialCode)
+                    throw new InputValueException(nMU.Value.String, "Management unit {0} is not valid: units are numbered 1 to 999", nMU.Value.Actual);
+                if (!unitMap && nMU.Value.Actual != 1)
+                    throw new InputValueException(nMU.Value.String, "Management unit {0}: ManagementUnits is none, so every cell is unit 1 and every row must be for unit 1. Give a ManagementUnits map to use other units", nMU.Value.Actual);
                 ReadValue(nSpGp, currentLine);
                 //  Species not listed in SpeciesGroupTable are in group 99 (all species).
                 if (nSpGp.Value.Actual != 99 && !speciesGroups.Contains(nSpGp.Value.Actual))
@@ -221,9 +227,9 @@ namespace Landis.Extension.FPS
                 CheckProportion(dProp);
 
                 int iPool = GetFPSPool(sPool);
-                RecordRow(Names.ForestToMill, nYear.Value, NoMarket, nSpGp.Value, iPool, sPool.Value.Actual, nMill.Value, sTemp.Value.Actual, dProp.Value);
+                RecordRow(Names.ForestToMill, nYear.Value, NoMarket, nSpGp.Value, iPool, sPool.Value.Actual, nMill.Value, sTemp.Value.Actual, dProp.Value, nMU.Value);
 
-                ProcessFMProps(parameters, nYear.Value, 1, nSpGp.Value, iPool, nMill.Value, dProp.Value);
+                ProcessFMProps(parameters, nYear.Value, nMU.Value, nSpGp.Value, iPool, nMill.Value, dProp.Value);
 
 
                     nread += 1;
@@ -564,7 +570,7 @@ namespace Landis.Extension.FPS
 
         //---------------------------------------------------------------------
 
-        private void RecordRow(string table, int year, int market, int group, int from, string fromName, int to, string toName, double proportion)
+        private void RecordRow(string table, int year, int market, int group, int from, string fromName, int to, string toName, double proportion, int unit = 1)
         {
             //  The Process*Props methods skip these rows too: they move no carbon.
             if (proportion <= 0)
@@ -575,6 +581,7 @@ namespace Landis.Extension.FPS
             row.Year = year;
             row.Market = market;
             row.Group = group;
+            row.Unit = unit;
             row.From = from;
             row.FromName = fromName;
             row.To = to;
@@ -626,9 +633,8 @@ namespace Landis.Extension.FPS
             {
                 if (System.Array.IndexOf(tables, row.Table) < 0 || NeverReceivesCarbon(row))
                     continue;
-                //  The same key FPSM uses to merge rows (the management unit is
-                //  always stored as 1, so it is not part of it).
-                string key = string.Join("|", row.Table, row.Year, row.Market, row.Group, row.From);
+                //  The same key FPSM uses to merge rows.
+                string key = string.Join("|", row.Table, row.Year, row.Market, row.Unit, row.Group, row.From);
                 if (!sources.ContainsKey(key))
                 {
                     sources[key] = new List<TableRow>();
@@ -976,7 +982,7 @@ namespace Landis.Extension.FPS
         private static string Source(TableRow row)
         {
             if (row.Table == Names.ForestToMill)
-                return string.Format("{0} for species group {1}", row.FromName, row.Group);
+                return string.Format("{0} for species group {1} in management unit {2}", row.FromName, row.Group, row.Unit);
             if (row.Table == Names.MilltoPrimary)
                 return string.Format("mill {0} ({1})", row.From, row.FromName);
             if (row.Table == Names.PrimarytoMarket)

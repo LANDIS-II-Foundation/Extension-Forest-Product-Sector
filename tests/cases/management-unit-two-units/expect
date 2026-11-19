@@ -1,0 +1,6 @@
+# SimpleTier1 with a ManagementUnits map (units.gis; units.csv holds the same
+# values): unit 1 in columns 1-4 sends its live carbon to SawnwoodMill (1),
+# unit 2 in columns 5-9 to WoodbasedPanelsMill (2), and both send snags to
+# Chipmill (3). Each mill receives exactly the harvest of its units' cells.
+exit_zero: yes
+unit_allocation: unit_mills.csv
