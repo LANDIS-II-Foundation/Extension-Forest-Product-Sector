@@ -296,10 +296,15 @@ namespace Landis.Extension.FPS
             StreamWriter rawf = Landis.Extension.FPS.Program.rawOutFile;
             StreamWriter testf = Landis.Extension.FPS.Program.tmpFile;
 
-            //loop over harvest years
-            //  Changed to loop over all years. If we have recycling involved, there could be some amount moving forward.
-            //for (int harvyr = 1; harvyr <= maxyears; harvyr++)
-            for (int harvyr = 1; harvyr <= (YearsAfter + maxyears); harvyr++)
+            //  Output runs to the final year: the last harvest year plus YearsPostHarvest.
+            int finalyr = YearsAfter + maxyears;
+
+            //loop over the years in which pools were made
+            //  Every pool made up to the final year is decayed and reported through it.
+            //  Pools of the year after hold only carbon recycled in the final year: the
+            //  loop reaches them so that carbon is reported as stock in the final year
+            //  (below), but they are not decayed.
+            for (int harvyr = 1; harvyr <= finalyr + 1; harvyr++)
             {
                 //get list of secondary products for the given harvest year
                 List<SecondOutput>  lSec_tmp = lSec.FilterSecondOutput(harvyr);
@@ -332,8 +337,11 @@ namespace Landis.Extension.FPS
                                 rawf.Write("5, {0}, {1}, {2}, {3}, {4}, 0, {5}\n", so.SecondOutputYear, so.SecondOutputYear - 1, so.SecondOutputPool, so.SecondOutputType, so.SecondOutputType, so.RecycledAmount);
                             }
 
-                            //loop over  years of decay
-                            for (int jyr = 1; jyr <= (YearsAfter + maxyears - harvyr); jyr++)
+                            //loop over years of decay
+                            //  jyr = 1 is the pool's own year, so the last pass, jyr =
+                            //  finalyr - harvyr + 1, is the final year. Pools of the year after
+                            //  the final year make no pass.
+                            for (int jyr = 1; jyr <= (finalyr - harvyr + 1); jyr++)
                             {
                                 int poolyr = harvyr + jyr;
                                 int outyr = so.SecondOutputYear + jyr - 1;  //the year of the simulation that things will be occuring
