@@ -1,0 +1,4 @@
+# SimpleTier1 with PaperPackaging (200) retiring to Fuel (1005), which has no
+# disposal row. Its carbon was dropped with "No proportions found for disposal pool".
+exit_zero: no
+stdout_contains: sends carbon to pool 1005 (Fuel) from year 0, but ProportionsFromRetirementToDisposal has no rows for it

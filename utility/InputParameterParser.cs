@@ -36,6 +36,30 @@ namespace Landis.Extension.FPS
         //---------------------------------------------------------------------
 
         private InputVar<string> speciesName;
+
+        //  Codes of 1000 and above are FPSM's fixed pools and gases (user guide,
+        //  Table 1); codes below 1000 are the user's mills, products and markets.
+        private const int FirstSpecialCode = 1000;
+        //  Market for tables that have no market column.
+        private const int NoMarket = -1;
+
+        //  A row of a proportions table that moves carbon (proportion above 0),
+        //  kept so that the tables can be checked against each other once all
+        //  of them have been read.
+        private class TableRow
+        {
+            public string Table;
+            public int Line;
+            public int Year;
+            public int Market;      //  NoMarket where the table has no market column
+            public int Group;       //  species group; forest-to-mills only
+            public int From;        //  code the row moves carbon out of
+            public string FromName;
+            public int To;          //  code the row moves carbon into
+            public string ToName;
+            public double Proportion;
+        }
+        private List<TableRow> tableRows = new List<TableRow>();
         //---------------------------------------------------------------------
 
         static InputParametersParser()
@@ -152,6 +176,7 @@ namespace Landis.Extension.FPS
                 ReadValue(dProp, currentLine);
 
                 int iPool = GetFPSPool(sPool);
+                RecordRow(Names.ForestToMill, nYear.Value, NoMarket, nSpGp.Value, iPool, sPool.Value.Actual, nMill.Value, sTemp.Value.Actual, dProp.Value);
 
                 ProcessFMProps(parameters, nYear.Value, 1, nSpGp.Value, iPool, nMill.Value, dProp.Value);
 
@@ -164,8 +189,6 @@ namespace Landis.Extension.FPS
 
             if (firstYear == -999)
                 throw new InputValueException(Names.ForestToMill, "No data were entered for Forest To Mill proportions. You must enter at least year 0. Lines read in table: {0}", nread);
-            if (!parameters.ListFM.CheckTotalProps())
-                throw new InputValueException(Names.ForestToMill, "Proportions for a year-species-FPS-ManUnit combination did not equal 1.");
 
             //--------- Read In Mills to Primary---------------------------
             //-------------------------
@@ -188,9 +211,11 @@ namespace Landis.Extension.FPS
 
                 ReadValue(nMill, currentLine);
                 ReadValue(sTemp, currentLine);
+                string fromName = sTemp.Value.Actual;
                 ReadValue(nPrimOut, currentLine);
                 ReadValue(sTemp, currentLine);
                 ReadValue(dProp, currentLine);
+                RecordRow(Names.MilltoPrimary, nYear.Value, NoMarket, 0, nMill.Value, fromName, nPrimOut.Value, sTemp.Value.Actual, dProp.Value);
 
                 ProcessPrimOutProps(parameters, nYear.Value, nMill.Value, nPrimOut.Value, dProp.Value);
 
@@ -201,9 +226,7 @@ namespace Landis.Extension.FPS
             }
 
             if (firstYear == -999)
-                throw new InputValueException(Names.PrimarytoMarket, "No data were entered for MilltoPrimary proportions. You must enter at least year 0. Lines read in table: {0}", nread);
-            if (!parameters.ListMillPrime.CheckTotalProps())
-                throw new InputValueException(Names.PrimarytoMarket, "Proportions for a year-mill-primary output combination did not equal 1.");
+                throw new InputValueException(Names.MilltoPrimary, "No data were entered for MilltoPrimary proportions. You must enter at least year 0. Lines read in table: {0}", nread);
 
             //--------- Read In Primary to Market---------------------------
             //-------------------------
@@ -226,9 +249,11 @@ namespace Landis.Extension.FPS
 
                 ReadValue(nMill, currentLine);
                 ReadValue(sTemp, currentLine);
+                string fromName = sTemp.Value.Actual;
                 ReadValue(nMarketOut, currentLine);
                 ReadValue(sTemp, currentLine);
                 ReadValue(dProp, currentLine);
+                RecordRow(Names.PrimarytoMarket, nYear.Value, NoMarket, 0, nMill.Value, fromName, nMarketOut.Value, sTemp.Value.Actual, dProp.Value);
 
                 ProcessMarketOutProps(parameters, nYear.Value, nMill.Value, nMarketOut.Value, dProp.Value);
 
@@ -240,8 +265,6 @@ namespace Landis.Extension.FPS
 
             if (firstYear == -999)
                 throw new InputValueException(Names.PrimarytoMarket, "No data were entered for PrimarytoMarket proportions. You must enter at least year 0. Lines read in table: {0}", nread);
-            if (!parameters.ListMillPrime.CheckTotalProps())
-                throw new InputValueException(Names.PrimarytoMarket, "Proportions for a year-mill-primary output combination did not equal 1.");
 
             //--------- Read In Primary to Secondary---------------------------
             //-------------------------
@@ -270,9 +293,11 @@ namespace Landis.Extension.FPS
                 ReadValue(nMarket, currentLine);
                 ReadValue(nMill, currentLine);
                 ReadValue(sTemp, currentLine);
+                string fromName = sTemp.Value.Actual;
                 ReadValue(nSecond, currentLine);
                 ReadValue(sTemp, currentLine);
                 ReadValue(dProp, currentLine);
+                RecordRow(Names.PrimaryToSecond, nYear.Value, nMarket.Value, 0, nMill.Value, fromName, nSecond.Value, sTemp.Value.Actual, dProp.Value);
                 ReadValue(sFunction, currentLine);
                 ReadValue(Param1, currentLine);
                 ReadValue(Param2, currentLine);
@@ -289,8 +314,6 @@ namespace Landis.Extension.FPS
 
             if (firstYear == -999)
                 throw new InputValueException(Names.PrimaryToSecond, "No data were entered for PrimaryToSecondary proportions. You must enter at least year 0.. Lines read in table: {0}", nread);
-            if (!parameters.ListPrimarySecondary.CheckTotalProps())
-                throw new InputValueException(Names.PrimaryToSecond, "Proportions for a year-market-primary-second output combination did not equal 1.");
 
             //--------- Read In Secondary to retirement ---------------------------
             //-------------------------
@@ -315,9 +338,15 @@ namespace Landis.Extension.FPS
                 ReadValue(nMarket, currentLine);  
                 ReadValue(nSecond, currentLine);    //secondary pool value
                 ReadValue(sTemp, currentLine);
+                string fromName = sTemp.Value.Actual;
                 ReadValue(nMill, currentLine);      //actually the retirement pool this time, not a mill
                 ReadValue(sTemp, currentLine);
                 ReadValue(dProp, currentLine);
+                RecordRow(Names.SecondToRetirement, nYear.Value, nMarket.Value, 0, nSecond.Value, fromName, nMill.Value, sTemp.Value.Actual, dProp.Value);
+                //  Only secondary products retire; codes of 1000 and above are
+                //  already disposal pools, which ProportionsFromRetirementToDisposal handles.
+                if (nSecond.Value >= FirstSpecialCode)
+                    throw new InputValueException(nSecond.Value.String, "{0} is not a secondary product: codes of 1000 and above are disposal pools (user guide, Table 1), and their fate is set in {1}", nSecond.Value.Actual, Names.RetirementToDisposal);
 
                 ProcessRetirementProps(parameters, nYear.Value, nMarket.Value, nSecond.Value, nMill.Value, dProp.Value);
 
@@ -329,8 +358,6 @@ namespace Landis.Extension.FPS
 
             if (firstYear == -999)
                 throw new InputValueException(Names.SecondToRetirement, "No data were entered for SecondToRetirement proportions. You must enter at least year 0. Lines read in table: {0}", nread);
-            if (!parameters.ListPrimarySecondary.CheckTotalProps())
-                throw new InputValueException(Names.SecondToRetirement, "Proportions for a secondary output-retirement combination did not equal 1.");
 
 
             //--------- Read In Retirement to Disposal ---------------------------
@@ -355,9 +382,11 @@ namespace Landis.Extension.FPS
 
                 ReadValue(nSecond, currentLine);    //"special" pool value
                 ReadValue(sTemp, currentLine);
+                string fromName = sTemp.Value.Actual;
                 ReadValue(nMill, currentLine);      //another pool or gas
                 ReadValue(sTemp, currentLine);
                 ReadValue(dProp, currentLine);
+                RecordRow(Names.RetirementToDisposal, nYear.Value, NoMarket, 0, nSecond.Value, fromName, nMill.Value, sTemp.Value.Actual, dProp.Value);
                 ReadValue(dHalf, currentLine);
                 ReadValue(nResp, currentLine);    
 
@@ -453,7 +482,248 @@ namespace Landis.Extension.FPS
             //while (!AtEndOfInput && (CurrentName != "No Section To Follow" && CurrentName != Names.SnagData))
             //while (!AtEndOfInput && (CurrentName != "No Section To Follow"))
 
-            return parameters; 
+            CheckTables();
+
+            return parameters;
+        }
+
+        //---------------------------------------------------------------------
+
+        private void RecordRow(string table, int year, int market, int group, int from, string fromName, int to, string toName, double proportion)
+        {
+            //  The Process*Props methods skip these rows too: they move no carbon.
+            if (proportion <= 0)
+                return;
+            TableRow row = new TableRow();
+            row.Table = table;
+            row.Line = LineNumber;
+            row.Year = year;
+            row.Market = market;
+            row.Group = group;
+            row.From = from;
+            row.FromName = fromName;
+            row.To = to;
+            row.ToName = toName;
+            row.Proportion = proportion;
+            tableRows.Add(row);
+        }
+
+        //  Checks that need more than one row or table. Each of these problems
+        //  used to show, if at all, as lines in FPS_log.txt while the run lost
+        //  or created carbon, so the run stops here instead, listing them all.
+        private void CheckTables()
+        {
+            List<string> problems = new List<string>();
+            CheckProportionTotals(problems);
+            CheckRetirementPairs(problems);
+            CheckDestinations(problems);
+            if (problems.Count > 0)
+                throw new InputTablesException(problems);
+        }
+
+        //  Proportions out of one source in one start year must add to 1.
+        private void CheckProportionTotals(List<string> problems)
+        {
+            string[] tables = new string[] { Names.ForestToMill, Names.MilltoPrimary, Names.PrimarytoMarket, Names.PrimaryToSecond, Names.SecondToRetirement };
+            Dictionary<string, List<TableRow>> sources = new Dictionary<string, List<TableRow>>();
+            List<string> order = new List<string>();
+            foreach (TableRow row in tableRows)
+            {
+                if (System.Array.IndexOf(tables, row.Table) < 0 || NeverReceivesCarbon(row))
+                    continue;
+                //  The same key FPSM uses to merge rows (the management unit is
+                //  always stored as 1, so it is not part of it).
+                string key = string.Join("|", row.Table, row.Year, row.Market, row.Group, row.From);
+                if (!sources.ContainsKey(key))
+                {
+                    sources[key] = new List<TableRow>();
+                    order.Add(key);
+                }
+                sources[key].Add(row);
+            }
+            foreach (string key in order)
+            {
+                List<TableRow> rows = sources[key];
+                double total = 0;
+                foreach (TableRow row in rows)
+                    total += row.Proportion;
+                //  The tolerance of the sum checks this replaces.
+                if (total <= 0.9999 || total >= 1.0001)
+                    problems.Add(string.Format("{0}, {1}: the proportions from {2} starting in year {3} add to {4}, not 1.",
+                        rows[0].Table, LineList(rows), Source(rows[0]), rows[0].Year, total));
+            }
+        }
+
+        //  A secondary product's retirement function is set in
+        //  ProportionsFromPrimaryToSecondaryProducts, and where its retired carbon
+        //  goes in ProportionsFromSecondaryProductsToRetirementOptions. FPSM pairs
+        //  the two by market, product and start year, and uses the pair with the
+        //  latest start year at or before the year a product is made. A function
+        //  with no retirement rows leaves that product unprocessed and unreported;
+        //  retirement rows with no function leave it never retiring.
+        private void CheckRetirementPairs(List<string> problems)
+        {
+            HashSet<string> reported = new HashSet<string>();
+            foreach (TableRow row in tableRows)
+            {
+                if (row.Table == Names.PrimaryToSecond && row.To < FirstSpecialCode
+                    && !HasRow(Names.SecondToRetirement, row.Year, row.Market, row.To)
+                    && reported.Add(string.Join("|", "function", row.Year, row.Market, row.To)))
+                {
+                    problems.Add(string.Format("{0}, line {1}: secondary product {2} ({3}) in market {4} gets its retirement function from year {5} here, but {6} has no rows for it in market {4} starting in year {5}. FPSM pairs the two tables by start year, so this product made from year {5} would never be retired or reported. Give it retirement rows starting in year {5}.",
+                        row.Table, row.Line, row.To, row.ToName, row.Market, row.Year, Names.SecondToRetirement));
+                }
+                //  Rows for a product that is neither made nor recycled into in
+                //  this market are never used, so they cannot lose carbon.
+                if (row.Table == Names.SecondToRetirement
+                    && !HasMadeRow(row.Year, row.Market, row.From)
+                    && (HasMadeRow(-1, row.Market, row.From) || IsRecycledInto(row.Market, row.From))
+                    && reported.Add(string.Join("|", "rows", row.Year, row.Market, row.From)))
+                {
+                    string never = HasMadeRow(-1, row.Market, row.From) ? ""
+                        : string.Format(" It is not made in market {0} in any year, and a product that is only recycled into has nowhere to get a retirement function.", row.Market);
+                    problems.Add(string.Format("{0}, line {1}: secondary product {2} ({3}) in market {4} has retirement rows starting in year {5}, but no row of {6} starting in year {5} makes it in market {4}, and that is where its retirement function is set. Without one, FPSM never retires this product from year {5}.{7}",
+                        row.Table, row.Line, row.From, row.FromName, row.Market, row.Year, Names.PrimaryToSecond, never));
+                }
+            }
+        }
+
+        //  Every destination must have rows of its own in the next table, starting
+        //  no later than the first year carbon is sent to it: FPSM uses the rows
+        //  with the latest start year at or before each year, and carbon with no
+        //  rows to follow is written to FPS_log.txt and dropped.
+        private void CheckDestinations(List<string> problems)
+        {
+            HashSet<string> reported = new HashSet<string>();
+            foreach (TableRow row in tableRows)
+            {
+                string next;
+                int market = NoMarket;
+                int from = row.To;
+                string what;
+                if (row.Table == Names.RetirementToDisposal || NeverReceivesCarbon(row))
+                    continue;
+                if (row.To >= FirstSpecialCode)
+                {
+                    next = Names.RetirementToDisposal;
+                    what = string.Format("pool {0} ({1})", row.To, row.ToName);
+                }
+                else if (row.Table == Names.ForestToMill)
+                {
+                    next = Names.MilltoPrimary;
+                    what = string.Format("mill {0} ({1})", row.To, row.ToName);
+                }
+                else if (row.Table == Names.MilltoPrimary)
+                {
+                    //  A primary product with the code of a mill goes back through
+                    //  that mill (re-milling); any other goes to the markets.
+                    if (EarliestStart(Names.MilltoPrimary, NoMarket, row.To) != int.MaxValue)
+                    {
+                        next = Names.MilltoPrimary;
+                        what = string.Format("mill {0} ({1}), as a primary product with a mill's code is milled again", row.To, row.ToName);
+                    }
+                    else
+                    {
+                        next = Names.PrimarytoMarket;
+                        what = string.Format("primary product {0} ({1})", row.To, row.ToName);
+                    }
+                }
+                else if (row.Table == Names.PrimarytoMarket)
+                {
+                    next = Names.PrimaryToSecond;
+                    market = row.To;
+                    from = row.From;
+                    what = string.Format("primary product {0} ({1}) in market {2} ({3})", row.From, row.FromName, row.To, row.ToName);
+                }
+                else if (row.Table == Names.SecondToRetirement)
+                {
+                    //  Recycling into a secondary product.
+                    next = Names.SecondToRetirement;
+                    market = row.Market;
+                    what = string.Format("secondary product {0} ({1}) in market {2}", row.To, row.ToName, row.Market);
+                }
+                else
+                {
+                    //  A secondary product made in ProportionsFromPrimaryToSecondaryProducts:
+                    //  CheckRetirementPairs covers its retirement rows.
+                    continue;
+                }
+
+                int start = EarliestStart(next, market, from);
+                if (start <= row.Year || !reported.Add(string.Join("|", next, market, from)))
+                    continue;
+                string has = start == int.MaxValue ? "has no rows for it"
+                    : string.Format("has rows for it only from year {0}", start);
+                problems.Add(string.Format("{0}, line {1}: sends carbon to {2} from year {3}, but {4} {5}, so that carbon would be lost.",
+                    row.Table, row.Line, what, row.Year, next, has));
+            }
+        }
+
+        //  FPSM sends carbon in a pool of 1000 or more straight to
+        //  ProportionsFromRetirementToDisposal, so rows of the mill, market and
+        //  secondary product tables that start from such a code are never used.
+        private static bool NeverReceivesCarbon(TableRow row)
+        {
+            return row.From >= FirstSpecialCode
+                && (row.Table == Names.MilltoPrimary || row.Table == Names.PrimarytoMarket || row.Table == Names.PrimaryToSecond);
+        }
+
+        private bool IsRecycledInto(int market, int product)
+        {
+            foreach (TableRow row in tableRows)
+                if (row.Table == Names.SecondToRetirement && row.Market == market && row.To == product)
+                    return true;
+            return false;
+        }
+
+        private bool HasRow(string table, int year, int market, int from)
+        {
+            foreach (TableRow row in tableRows)
+                if (row.Table == table && row.Year == year && row.Market == market && row.From == from)
+                    return true;
+            return false;
+        }
+
+        //  Whether ProportionsFromPrimaryToSecondaryProducts makes this product in
+        //  this market in the given start year (any year if year < 0).
+        private bool HasMadeRow(int year, int market, int product)
+        {
+            foreach (TableRow row in tableRows)
+                if (row.Table == Names.PrimaryToSecond && row.Market == market && row.To == product && (year < 0 || row.Year == year))
+                    return true;
+            return false;
+        }
+
+        private int EarliestStart(string table, int market, int from)
+        {
+            int start = int.MaxValue;
+            foreach (TableRow row in tableRows)
+                if (row.Table == table && row.Market == market && row.From == from && row.Year < start)
+                    start = row.Year;
+            return start;
+        }
+
+        private static string Source(TableRow row)
+        {
+            if (row.Table == Names.ForestToMill)
+                return string.Format("{0} for species group {1}", row.FromName, row.Group);
+            if (row.Table == Names.MilltoPrimary)
+                return string.Format("mill {0} ({1})", row.From, row.FromName);
+            if (row.Table == Names.PrimarytoMarket)
+                return string.Format("primary product {0} ({1})", row.From, row.FromName);
+            if (row.Table == Names.PrimaryToSecond)
+                return string.Format("primary product {0} ({1}) in market {2}", row.From, row.FromName, row.Market);
+            if (row.Table == Names.SecondToRetirement)
+                return string.Format("secondary product {0} ({1}) in market {2}", row.From, row.FromName, row.Market);
+            return string.Format("pool {0} ({1})", row.From, row.FromName);
+        }
+
+        private static string LineList(List<TableRow> rows)
+        {
+            List<string> lines = new List<string>();
+            foreach (TableRow row in rows)
+                lines.Add(row.Line.ToString());
+            return (rows.Count == 1 ? "line " : "lines ") + string.Join(", ", lines);
         }
 
 
@@ -596,7 +866,35 @@ namespace Landis.Extension.FPS
                 tSR = new SecondToRetirement(nYr, nMarket, nPrimOut, -99, 0, ftype, p1, p2);
                 parameters.ListSecondaryRetirement.Add(tSR);
             }
+            //  A product's retirement function is kept from the first row that
+            //  makes it in this market and year; a later row could only differ by
+            //  mistake. Codes of 1000 and above are disposal pools, which do not
+            //  use the function.
+            else if (nPrimOut < FirstSpecialCode && !SameFunction(tSR, ftype, p1, p2))
+            {
+                throw NewParseException(
+                    "Secondary product {0} in market {1} has the retirement function {2} here, but {3} on an earlier row for year {4}. A product has one retirement function per market and start year.",
+                    nPrimOut, nMarket, FunctionText(ftype, p1, p2), FunctionText(tSR.DecayType, tSR.Param1, tSR.Param2), nYr);
+            }
 
+        }
+
+        //  Function types from GetFunctionType(): 1 = exponential (parameter 1 is
+        //  the half-life), 2 = gamma (both parameters), 3 = instant (none).
+        private static bool SameFunction(SecondToRetirement tSR, int ftype, double p1, double p2)
+        {
+            if (tSR.DecayType != ftype) return false;
+            if (ftype == 1) return tSR.Param1 == p1;
+            if (ftype == 2) return tSR.Param1 == p1 && tSR.Param2 == p2;
+            return true;
+        }
+
+        private static string FunctionText(int ftype, double p1, double p2)
+        {
+            if (ftype == 1) return string.Format("exponential (half-life {0})", p1);
+            if (ftype == 2) return string.Format("gamma ({0}, {1})", p1, p2);
+            if (ftype == 3) return "instant";
+            return string.Format("type {0}", ftype);
         }
 
         private void ProcessRetirementProps(InputParameters parameters, int nYr, int nMarket, int nSecond, int nPrimOut, double dProp)
@@ -722,5 +1020,16 @@ namespace Landis.Extension.FPS
 
         }
 
+    }
+
+    //  Problems found by comparing rows and tables once all are read, all listed
+    //  together so that one run shows every fix needed.
+    public class InputTablesException : System.Exception
+    {
+        public InputTablesException(List<string> problems)
+            : base(string.Format("{0} problem{1} in the proportions tables:\n  {2}",
+                problems.Count, problems.Count == 1 ? "" : "s", string.Join("\n  ", problems)))
+        {
+        }
     }
 }

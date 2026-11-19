@@ -1,0 +1,5 @@
+# SimpleTier1 with Panels (106) also making PaperPackaging (200), under a different
+# half-life from the Chips row that makes it. Only the first row's function was
+# used, without a message.
+exit_zero: no
+stdout_contains: Secondary product 200 in market 300 has the retirement function exponential (half-life 5) here, but exponential (half-life 2) on an earlier row for year 0

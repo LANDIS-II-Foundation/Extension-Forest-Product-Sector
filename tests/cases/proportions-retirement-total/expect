@@ -1,0 +1,5 @@
+# SimpleTier1 with PaperPackaging (200) retiring 0.9 of its retired carbon. The
+# retirement table's proportions were never summed (the check after it re-checked
+# primary-to-secondary), so the product kept carbon its function said had retired.
+exit_zero: no
+stdout_contains: the proportions from secondary product 200 (PaperPackaging) in market 300 starting in year 0 add to 0.9, not 1

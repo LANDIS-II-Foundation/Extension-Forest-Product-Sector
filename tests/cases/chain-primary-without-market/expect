@@ -1,0 +1,4 @@
+# SimpleTier1 without the market row for Sawnwood (104). Mill 1 still makes it,
+# so its carbon was dropped with a "No proportions found PrimaryToMarket" log line.
+exit_zero: no
+stdout_contains: sends carbon to primary product 104 (Sawnwood) from year 0, but ProportionsFromPrimaryToMarkets has no rows for it

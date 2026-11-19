@@ -1,0 +1,5 @@
+# SimpleTier1 with a year-5 row making PaperPackaging (200), and no retirement rows
+# for year 5. FPSM pairs the two tables by start year, so PaperPackaging made from
+# year 5 was never retired or reported ("No proportions found SecondToRetirement").
+exit_zero: no
+stdout_contains: secondary product 200 (PaperPackaging) in market 300 gets its retirement function from year 5 here, but ProportionsFromSecondaryProductsToRetirementOptions has no rows for it
