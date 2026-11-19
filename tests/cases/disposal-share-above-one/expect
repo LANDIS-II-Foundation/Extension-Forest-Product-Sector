@@ -1,0 +1,4 @@
+# SimpleTier1 with LandfillWood (1000) moving a share of 1.5 into 1009, which left
+# a negative undecayed stock.
+exit_zero: no
+stdout_contains: pool 1000 (LandfillWood) from year 0 moves a degradable share of 1.5 into 1009; a share is at most 1

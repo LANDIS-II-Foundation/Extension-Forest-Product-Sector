@@ -1,0 +1,5 @@
+# SimpleTier1 with PaperPackaging (200) retiring to DumpWood (1001), which both
+# decays as a whole and sends 0.2 straight to E_CO2. FPSM applied each row to the
+# whole pool, so 1.2 times its carbon left it.
+exit_zero: no
+stdout_contains: pool 1001 (DumpWood) from year 0 mixes rows
