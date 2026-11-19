@@ -78,6 +78,56 @@ namespace Landis.Extension.FPS
 
         }
 
+        //  The harvest loop in RunFPS reads the ForCS flux logs by column
+        //  position, so check that each column it reads has the name ForCS gives
+        //  it, that Time, row and column are whole numbers, and that carbon is a
+        //  number of 0 or more. Carbon at a Time below 1 is refused: products
+        //  are retired and reported from year 1, so it would never be reported.
+        static void CheckFluxLog(string fname, int[] columns, string[] names, int[] wholeNumbers, int[] carbon)
+        {
+            StreamReader fluxfile = OpenFileToRead(fname);  //  past the header
+            string[] header;
+            using (StreamReader headerfile = File.OpenText(fname))
+            {
+                string first = headerfile.ReadLine();
+                header = first == null ? new string[0] : first.Split(',');
+            }
+            int lastColumn = 0;
+            for (int i = 0; i < columns.Length; i++)
+            {
+                lastColumn = Math.Max(lastColumn, columns[i]);
+                string got = columns[i] < header.Length ? header[columns[i]].Trim() : "(none)";
+                if (!string.Equals(got, names[i], StringComparison.OrdinalIgnoreCase))
+                    throw new ApplicationException(string.Format("{0}: column {1} is \"{2}\", not \"{3}\". FPSM reads the ForCS flux logs by column position, so it would read the wrong values.",
+                        fname, columns[i] + 1, got, names[i]));
+            }
+
+            string[] values;
+            int line = 1;
+            while ((values = GetValuesFromFile(fluxfile)) != null)
+            {
+                line += 1;
+                if (values.Length <= lastColumn)
+                    throw new ApplicationException(string.Format("{0}, line {1}: {2} columns, but FPSM reads column {3}.", fname, line, values.Length, lastColumn + 1));
+                int whole;
+                foreach (int c in wholeNumbers)
+                    if (!int.TryParse(values[c].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out whole))
+                        throw new ApplicationException(string.Format("{0}, line {1}: {2} is \"{3}\", not a whole number.", fname, line, header[c].Trim(), values[c].Trim()));
+                int time = int.Parse(values[0].Trim(), CultureInfo.InvariantCulture);
+                foreach (int c in carbon)
+                {
+                    double amount;
+                    if (!double.TryParse(values[c].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out amount))
+                        throw new ApplicationException(string.Format("{0}, line {1}: {2} is \"{3}\", not a number.", fname, line, header[c].Trim(), values[c].Trim()));
+                    if (amount < 0)
+                        throw new ApplicationException(string.Format("{0}, line {1}: {2} is {3}; carbon sent to FPSM cannot be negative.", fname, line, header[c].Trim(), amount));
+                    if (amount > 0 && time < 1)
+                        throw new ApplicationException(string.Format("{0}, line {1}: {2} is {3} at Time {4}. FPSM retires and reports products from year 1, so this carbon would never be reported.", fname, line, header[c].Trim(), amount, time));
+                }
+            }
+            fluxfile.Close();
+        }
+
         static void LogFile_Initialize()
         {
             logFile = Landis.Data.CreateTextFile("FPS_log.txt");
@@ -163,6 +213,13 @@ namespace Landis.Extension.FPS
 
             InputParametersParser parser = new InputParametersParser();
             parameters = Landis.Data.Load<IInputParameters>(inFile, parser);
+
+            //  The columns the harvest loop below reads (harvc, harvc2), checked
+            //  before any carbon is allocated.
+            CheckFluxLog(parameters.HarvestFileLive, new int[] { 0, 1, 2, 4, 16 },
+                new string[] { "Time", "row", "column", "species", "BioToFPS" }, new int[] { 0, 1, 2 }, new int[] { 16 });
+            CheckFluxLog(parameters.HarvestFileDOM, new int[] { 0, 1, 2, 4, 18, 19 },
+                new string[] { "Time", "row", "column", "species", "SnagsToFPS", "DOMtoFPS" }, new int[] { 0, 1, 2 }, new int[] { 18, 19 });
 
             //load management unit file
             //parameters.ManagementUnitFile;

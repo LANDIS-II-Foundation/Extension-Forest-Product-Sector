@@ -1,0 +1,3 @@
+# SimpleTier1 with a species listed twice; only its first group was used.
+exit_zero: no
+stdout_contains: Species all is listed twice in SpeciesGroupTable

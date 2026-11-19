@@ -1,0 +1,4 @@
+# SimpleTier1 with one forest-to-mills row for management unit 2. FPSM does not
+# read the ManagementUnits map and stored the row as unit 1.
+exit_zero: no
+stdout_contains: Management unit 2: FPSM does not read the ManagementUnits map yet

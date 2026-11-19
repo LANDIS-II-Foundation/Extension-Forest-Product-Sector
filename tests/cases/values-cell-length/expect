@@ -1,0 +1,3 @@
+# SimpleTier1 with CellLength 0, which was silently taken as 1.
+exit_zero: no
+stdout_contains: CellLength is 0; it must be at least 1

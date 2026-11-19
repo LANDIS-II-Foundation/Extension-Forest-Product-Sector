@@ -204,18 +204,10 @@ namespace Landis.Extension.FPS
                     }
                     else       //case when we are looking for the proportions that are valid for this timestep
                     {
-                        if (tlFM == null)
-                        {
-                            if (lfm.BeginTime <= beginTime) { tlFM = lfm; }
-                        }
-                        else
-                        {
-                            if ((lfm.BeginTime <= beginTime) && (tlFM.BeginTime <= beginTime))
-                            { tlFM = lfm; }
-                            else if (((lfm.BeginTime > beginTime) && (tlFM.BeginTime <= beginTime)))
-                            { return (tlFM); }
-
-                        }
+                        //  The rows with the latest start year at or before this year,
+                        //  whatever order the table lists them in.
+                        if (lfm.BeginTime <= beginTime && (tlFM == null || lfm.BeginTime > tlFM.BeginTime))
+                            tlFM = lfm;
                     }
                 }
             }
