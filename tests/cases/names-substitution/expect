@@ -1,0 +1,5 @@
+# SimpleTier1 naming primary product 104 Lumber in the Substitution table and
+# Sawnwood elsewhere.
+# The run goes on, with a warning in FPS_log.txt.
+exit_zero: yes
+log_contains: primary product 104 is named "Lumber" here but "Sawnwood" in ProportionsFromMillsToPrimaryWoodProducts, line 41

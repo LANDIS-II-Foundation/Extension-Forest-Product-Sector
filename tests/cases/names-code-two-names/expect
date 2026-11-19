@@ -1,0 +1,5 @@
+# SimpleTier1 with forest-to-mills naming mill 2 SawnwoodMill, which is mill 1's
+# name; the mill table calls mill 2 WoodbasedPanelsMill. FPSM followed the code.
+# The run goes on, with a warning in FPS_log.txt.
+exit_zero: yes
+log_contains: mill 2 is named "WoodbasedPanelsMill" here but "SawnwoodMill" in ProportionsFromForestToMills, line 31

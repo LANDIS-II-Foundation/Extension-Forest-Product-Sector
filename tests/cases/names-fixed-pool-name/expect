@@ -1,0 +1,6 @@
+# SimpleTier1 with PaperPackaging (200) retiring to 1004 under the name DumpWood,
+# as in a configuration sent on 11 November. 1004 is LandfillPaper whatever it is
+# called, so the carbon went to landfill, not to the dump.
+# The run goes on, with a warning in FPS_log.txt.
+exit_zero: yes
+log_contains: pool 1004 is named "DumpWood", the user guide's name for pool 1001

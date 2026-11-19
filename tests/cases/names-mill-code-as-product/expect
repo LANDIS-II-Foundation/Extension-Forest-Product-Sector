@@ -1,0 +1,5 @@
+# SimpleTier1 with SawnwoodMill (1) making primary product 3. Code 3 is the
+# Chipmill, so FPSM sent the sawnwood through the chip mill again.
+# The run goes on, with a warning in FPS_log.txt.
+exit_zero: yes
+log_contains: Mills and primary products share codes: a primary product with a mill's code goes back through that mill
