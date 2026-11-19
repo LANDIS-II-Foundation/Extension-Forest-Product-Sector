@@ -1,0 +1,6 @@
+# SimpleTier1 with Sawnwood (204) given the instant retirement function. All of
+# each year's Sawnwood retires in the year it is made and goes to
+# InstantEmission (1002) that year; before the fix it never retired.
+exit_zero: yes
+retires_in_first_year: 204
+product_balance: yes
