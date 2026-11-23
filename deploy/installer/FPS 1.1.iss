@@ -52,6 +52,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: {#BuildDir}\Landis.Extension.FPS-v1.dll; DestDir: {#SetupDir}; Flags: replacesameversion
 Source: {#BuildDir}\Landis.Extension.FPS-v1.exe; DestDir: {#SetupDir}; Flags: replacesameversion
 Source: {#BuildDir}\Landis.Extension.FPS-v1.runtimeconfig.json; DestDir: {#SetupDir}; Flags: replacesameversion
+; The dependency manifest tells .NET where the native GDAL libraries are (runtimes\ below).
+; With it installed, every assembly it lists must be installed too.
+Source: {#BuildDir}\Landis.Extension.FPS-v1.deps.json; DestDir: {#SetupDir}; Flags: replacesameversion
 Source: LANDIS-II ForestProducts v1.1 User Guide.pdf; DestDir: {#SetupDir}; Flags: replacesameversion
 
 
@@ -68,6 +71,15 @@ Source: {#BuildDir}\System.Configuration.ConfigurationManager.dll; DestDir: {#Se
 Source: {#BuildDir}\System.Security.Cryptography.ProtectedData.dll; DestDir: {#SetupDir}; Flags: replacesameversion
 Source: {#BuildDir}\System.Security.Permissions.dll; DestDir: {#SetupDir}; Flags: replacesameversion
 Source: {#BuildDir}\Troschuetz.Random.dll; DestDir: {#SetupDir}; Flags: replacesameversion
+
+; Reading the ManagementUnits map: LANDIS-II's raster library and GDAL. FPSM loads the
+; Windows or Linux driver at run time; the manifest lists both, so both are installed.
+Source: {#BuildDir}\Landis.RasterIO.dll; DestDir: {#SetupDir}; Flags: replacesameversion
+Source: {#BuildDir}\Landis.RasterIO.Gdal.dll; DestDir: {#SetupDir}; Flags: replacesameversion
+Source: {#BuildDir}\Landis.RasterIO.Gdal.Linux.dll; DestDir: {#SetupDir}; Flags: replacesameversion
+Source: {#BuildDir}\Gdal.Core.dll; DestDir: {#SetupDir}; Flags: replacesameversion
+Source: {#BuildDir}\runtimes\win10-x64\*; DestDir: {#SetupDir}\runtimes\win10-x64; Flags: replacesameversion recursesubdirs createallsubdirs
+Source: {#BuildDir}\runtimes\win\*; DestDir: {#SetupDir}\runtimes\win; Flags: replacesameversion recursesubdirs createallsubdirs
 
 ; Complete examples for testing the extension
 Source: ..\examples\ComplexTier3Ex\*; DestDir: {#Example1Dir}; Flags: replacesameversion
