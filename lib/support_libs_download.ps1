@@ -4,32 +4,42 @@ $master = "https://github.com/LANDIS-II-Foundation/Support-Library-Dlls-v8/raw/m
 
 #************************************************
 # LANDIS-II support library dependencies
-# Modify here when any dependencies changed 
+# Modify here when any dependencies changed
 
 $dlls = "Landis.Library.Metadata-v2.dll",
 "Landis.Library.Parameters-v2.dll",
 "MathNet.Numerics.dll"
 #************************************************
 
+# Tries per library, and seconds to wait between them
+$attempts = 3
+$wait = 5
+
 
 # LANDIS-II support libraries download
 $current = Get-Location
 $outpath = $current.toString() + "/"
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-try {
-	ForEach ($item in $dlls) {
-		$dll = $outpath + $item
-		$url = $master + $item
-		[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-		Invoke-WebRequest -uri $url -Outfile $dll
-		($dll).split('/')[-1].toString() + "------------- downloaded"
+ForEach ($item in $dlls) {
+	$dll = $outpath + $item
+	$url = $master + $item
+	for ($try = 1; $try -le $attempts; $try++) {
+		try {
+			Invoke-WebRequest -uri $url -Outfile $dll -ErrorAction Stop
+			$item + "------------- downloaded"
+			break
+		}
+		catch {
+			"Try " + $try + " of " + $attempts + " failed for " + $url + ": " + $_.Exception.Message
+			if ($try -eq $attempts) {
+				# Stop with an error, so that a build does not go on without this library
+				"Unable to download file from " + $url
+				exit 1
+			}
+			Start-Sleep -Seconds $wait
+		}
 	}
-	"`n***** Download complete *****`n"
 }
-catch [System.Net.WebException],[System.IO.IOException]{
-	"Unable to download file from " + $item.toString()
-}
-catch {
-	"An error occurred."
-}
+"`n***** Download complete *****`n"
 
