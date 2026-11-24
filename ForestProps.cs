@@ -337,7 +337,7 @@ namespace Landis.Extension.FPS
         /// Reads the harvest file and apportions the different harvest amounts to mills.
         /// The result is a listMillHarvest opject that contains groups of mill-year combinations with the apportioned harvest
         ///</summary>
-        public void ReadHarvestFile(int iftype, IInputParameters parameters, string[] result, int harvc, int harvc2, listSpecialOutput lSO, int[,] mu)
+        public void ReadHarvestFile(IInputParameters parameters, string[] result, int harvc, int harvc2, int poolc, int poolc2, listSpecialOutput lSO, int[,] mu)
         {
             int iyr;
             int irow;
@@ -365,12 +365,18 @@ namespace Landis.Extension.FPS
             { irow = 0; icol = 0; }
 
             int usecol = harvc;
+            //  The pool a column belongs to, NOT the file it came from. The DOM
+            //  file carries two different pools, so the file index cannot stand
+            //  in for both: doing that allocated DOMtoFPS by the SnagToFPS
+            //  proportions and left every DOMtoFPS row unmatched.
+            int usepool = poolc;
             for (int i = 1; i < 3; i++)
             {
                 if (i == 2)
                 {
                     if (harvc2 <= 0) { return; }
                     usecol = harvc2;
+                    usepool = poolc2;
                 }
                 bioh = double.Parse(result[usecol]);
 
@@ -389,7 +395,7 @@ namespace Landis.Extension.FPS
                 if (bioh > 0)
                 {
                     //now find the proportions that we need for this year.
-                    ftom = parameters.ListFM.FindForestMillList(iyr, mu[irow,icol], spg, iftype, 2);
+                    ftom = parameters.ListFM.FindForestMillList(iyr, mu[irow,icol], spg, usepool, 2);
                     if (ftom != null)
                     {
                         foreach (MillProp imp in ftom.GetMillList())
@@ -423,14 +429,14 @@ namespace Landis.Extension.FPS
                         //  no group 99 row present to receive it.
                         throw new ApplicationException(string.Format(
                             "No proportions found in ProportionsFromForestToMills for year {0}, "
-                            + "management unit {1}, species group {2}, file {3}. "
+                            + "management unit {1}, species group {2}, pool {3}. "
                             + "{4} tonnes of carbon would be discarded.",
-                            iyr, mu[irow, icol], spg, iftype, bioh));
+                            iyr, mu[irow, icol], spg, usepool, bioh));
                     }
                     double diff = AllocatedAmount - bioh;
                     if ((diff > 0.0001) || (diff < -0.0001))
                     {
-                        logf.Write("Allocated <> Available in Forest To Mills, year: {0}, Man Unit: {1}, SpeciesGroup: {2}, File: {3}, AllocatedAmount: {4}, AmountToBeAllocated: {5}\n", iyr, mu[irow, icol], spg, iftype, AllocatedAmount, bioh);
+                        logf.Write("Allocated <> Available in Forest To Mills, year: {0}, Man Unit: {1}, SpeciesGroup: {2}, Pool: {3}, AllocatedAmount: {4}, AmountToBeAllocated: {5}\n", iyr, mu[irow, icol], spg, usepool, AllocatedAmount, bioh);
                     }
 
                 }

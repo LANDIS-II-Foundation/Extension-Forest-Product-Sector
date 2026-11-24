@@ -171,6 +171,7 @@ namespace Landis.Extension.FPS
 
             //read in the files containing the harvest. Divide up the harvest as we go, because we don't need to know where things come from.
             int harvc;
+            int poolc, poolc2;   //  pool keys, matching GetFPSPool(): 1 BioToFPS, 2 SnagToFPS, 3 DOMtoFPS
             int harvc2;
 
             Harvest hlist = new Harvest();
@@ -189,12 +190,16 @@ namespace Landis.Extension.FPS
                     fpsfile = OpenFileToRead(parameters.HarvestFileLive);
                     harvc = 16;
                     harvc2 = -1;
+                    poolc = 1;      //  column 16 is BioToFPS
+                    poolc2 = -1;
                 }
                 else
                 {
                     fpsfile = OpenFileToRead(parameters.HarvestFileDOM);
                     harvc = 18;
                     harvc2 = 19;
+                    poolc = 2;      //  column 18 is SnagToFPS
+                    poolc2 = 3;     //  column 19 is DOMtoFPS
                 }
                 do
                 {
@@ -202,7 +207,7 @@ namespace Landis.Extension.FPS
 
                     if (result != null)
                     {
-                        hlist.ReadHarvestFile(i, parameters, result, harvc, harvc2, lSO, mu);
+                        hlist.ReadHarvestFile(parameters, result, harvc, harvc2, poolc, poolc2, lSO, mu);
                     }
 
                 } while (result != null);
