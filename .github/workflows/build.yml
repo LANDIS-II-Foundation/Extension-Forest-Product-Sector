@@ -35,6 +35,23 @@ jobs:
             printf '%10s  %s\n' "$(stat -c%s "lib/$dll")" "lib/$dll"
           done
 
+      # When a library cannot be downloaded, the script must stop the job with
+      # the error rather than let the build fail later on a missing namespace.
+      # Run it again with no network, called the way a pwsh step calls it.
+      - name: Download script fails without a network
+        run: |
+          set -uo pipefail
+          tmp=$(mktemp -d)
+          cp lib/support_libs_download.ps1 "$tmp/"
+          cd "$tmp"
+          # The step's shell stops at a failing command, so record the exit code instead.
+          code=0
+          sudo unshare --net pwsh -NoProfile -Command \
+            './support_libs_download.ps1; if (Test-Path variable:\LASTEXITCODE) { exit $LASTEXITCODE }' > out.txt 2>&1 || code=$?
+          cat out.txt
+          [ "$code" -ne 0 ] || { echo "::error::the download script exited 0 with no network"; exit 1; }
+          grep -q "Unable to download file from" out.txt || { echo "::error::the download script did not say which file failed"; exit 1; }
+
       # Restores Landis.Core from the MyGet feed declared in NuGet.config.
       # Without that file this step is what fails, which is the whole point of
       # running it in CI.

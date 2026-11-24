@@ -30,6 +30,14 @@ jobs:
         working-directory: lib
         run: ./support_libs_download.ps1
 
+      - name: Verify support libraries are present
+        run: |
+          set -euo pipefail
+          for dll in Landis.Library.Metadata-v2.dll Landis.Library.Parameters-v2.dll MathNet.Numerics.dll; do
+            test -s "lib/$dll" || { echo "::error::missing lib/$dll"; exit 1; }
+            printf '%10s  %s\n' "$(stat -c%s "lib/$dll")" "lib/$dll"
+          done
+
       - name: Build
         run: dotnet build FPS.csproj -c Release
 
