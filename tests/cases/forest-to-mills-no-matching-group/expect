@@ -1,0 +1,10 @@
+# SimpleTier1 with the BioToFPS rows assigned to species group 98, while every
+# species still resolves to group 99. This is the shape of the problem when a
+# species is absent from SpeciesGroupTable: SpeciesGroupList.Find() returns 99
+# for anything unlisted, and if no group 99 row exists the lookup finds nothing.
+#
+# Carbon that cannot be allocated now stops the run instead of disappearing
+# into a log line.
+exit_zero: no
+stdout_contains: No proportions found in ProportionsFromForestToMills
+stdout_contains: tonnes of carbon would be discarded
