@@ -1,0 +1,148 @@
+# Build the Windows installer with Inno Setup, install it, and run both shipped
+# examples with the installed program.
+#
+# Run it by hand from the Actions tab ("Run workflow"). It also runs on pushes
+# and pull requests that change the source, the support libraries, deploy/ or
+# this workflow, so a PR shows that its installer builds and runs on Windows.
+# The installer, the DLLs it bundles and their checksums are uploaded as the
+# "fps-installer" artifact; committing the installer to deploy/installer/ stays
+# a maintainer's step.
+name: windows installer
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "**.cs"
+      - "FPS.csproj"
+      - "NuGet.config"
+      - "lib/**"
+      - "deploy/**"
+      - ".github/workflows/build-installer.yml"
+  pull_request:
+    paths:
+      - "**.cs"
+      - "FPS.csproj"
+      - "NuGet.config"
+      - "lib/**"
+      - "deploy/**"
+      - ".github/workflows/build-installer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    name: windows installer builds and runs the examples
+    # The Windows Server 2022 image includes Inno Setup 6.
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Download LANDIS-II support libraries
+        working-directory: lib
+        run: |
+          ./support_libs_download.ps1
+          # the script reports a failed download but does not fail, so check every file
+          foreach ($d in "Landis.Library.Metadata-v2.dll", "Landis.Library.Parameters-v2.dll", "MathNet.Numerics.dll") {
+            if (-not (Test-Path $d)) { throw "missing lib/$d" }
+          }
+
+      - name: Build
+        run: |
+          dotnet build FPS.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
+
+      - name: Build the installer
+        run: |
+          $iss = @(Get-ChildItem deploy/installer/*.iss)
+          if ($iss.Count -ne 1) { throw "expected one .iss in deploy/installer, found $($iss.Count)" }
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = (Get-Command iscc -ErrorAction Stop).Source }
+          # write to a fresh folder: deploy/installer/ also holds the committed installer
+          $out = Join-Path $env:RUNNER_TEMP "installer"
+          & $iscc "/O$out" $iss[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+          Copy-Item bin/Release/net8.0/*.dll $out
+
+      - name: List versions and checksums
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP "installer"
+          Get-ChildItem $out -File | ForEach-Object {
+            $v = $_.VersionInfo
+            "{0}  {1}  file {2}  product {3}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(),
+              $_.Name, $v.FileVersion, $v.ProductVersion
+          } | Tee-Object -FilePath (Join-Path $out "SHA256SUMS.txt")
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fps-installer
+          path: ${{ runner.temp }}/installer
+          if-no-files-found: error
+
+      # The installer registers FPSM with LANDIS-II by calling its
+      # landis-ii-extensions.cmd, which the runner does not have. A stand-in at
+      # that path records its arguments, so the install completes and the
+      # registration can be checked.
+      - name: Install
+        run: |
+          $cmds = "C:\Program Files\LANDIS-II-v8\commands"
+          New-Item -ItemType Directory -Force $cmds | Out-Null
+          $calls = Join-Path $env:RUNNER_TEMP "extensions-calls.txt"
+          Set-Content (Join-Path $cmds "landis-ii-extensions.cmd") "@echo %*>> `"$calls`""
+          $setup = @(Get-ChildItem (Join-Path $env:RUNNER_TEMP "installer") -Filter *-setup.exe)
+          if ($setup.Count -ne 1) { throw "expected one installer, found $($setup.Count)" }
+          $p = Start-Process $setup[0].FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "the installer exited with $($p.ExitCode)" }
+          Get-ChildItem C:\FPS -File | Select-Object Name, Length | Format-Table -AutoSize | Out-String
+          "landis-ii-extensions.cmd was called with:"
+          Get-Content $calls
+          if (-not (Select-String -Quiet -SimpleMatch "add" $calls)) { throw "the installer did not register FPSM with LANDIS-II" }
+
+      # Each example's inputs are copied to a working folder and run with the
+      # installed program; its output is compared with the committed reference
+      # line by line, as the examples workflow does on Linux, ignoring only the
+      # line endings.
+      - name: Run the examples with the installed program
+        run: |
+          $exe = "C:\FPS\Landis.Extension.FPS-v1.exe"
+          if (-not (Test-Path $exe)) { throw "the installer did not install $exe" }
+          $status = 0
+          foreach ($ex in Get-ChildItem deploy/examples -Directory) {
+            $cfg = (Get-ChildItem $ex.FullName -Filter "FPSM_*.txt").Name
+            $work = Join-Path $env:RUNNER_TEMP $ex.Name
+            New-Item -ItemType Directory -Force $work | Out-Null
+            Copy-Item (Join-Path $ex.FullName "log_Flux*.csv"), (Join-Path $ex.FullName $cfg) $work
+            "::group::$($ex.Name) ($cfg)"
+            Push-Location $work
+            & $exe $cfg
+            $code = $LASTEXITCODE
+            Pop-Location
+            if ($code -ne 0) { "::error::$($ex.Name) exited with $code"; $status = 1; "::endgroup::"; continue }
+            foreach ($out in "FPS_log.txt", "FPS_raw_out.csv", "FPS_test_out.csv") {
+              $ref = Join-Path $ex.FullName $out
+              if (-not (Test-Path $ref)) { continue }
+              $a = @(Get-Content $ref)
+              $b = @(Get-Content (Join-Path $work $out))
+              $n = [Math]::Max($a.Count, $b.Count)
+              $first = -1
+              for ($i = 0; $i -lt $n; $i++) { if ($a[$i] -cne $b[$i]) { $first = $i; break } }
+              if ($first -lt 0) { "  match: $out" }
+              else {
+                "::error::$($ex.Name)/$out differs from the committed reference, first at line $($first + 1)"
+                "  committed: $($a[$first])"
+                "  installed: $($b[$first])"
+                $status = 1
+              }
+            }
+            "::endgroup::"
+          }
+          exit $status
