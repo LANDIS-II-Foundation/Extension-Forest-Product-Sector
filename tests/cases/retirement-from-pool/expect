@@ -1,0 +1,4 @@
+# SimpleTier1 with a retirement row whose source is a disposal pool (1002). Pools
+# do not retire; the row was accepted and ignored.
+exit_zero: no
+stdout_contains: 1002 is not a secondary product

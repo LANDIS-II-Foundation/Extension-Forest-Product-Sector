@@ -1,0 +1,4 @@
+# SimpleTier1 with Sawnwood's (104) market row starting in year 5. Sawnwood made
+# in years 1 to 4 had no market, and was dropped with log lines.
+exit_zero: no
+stdout_contains: sends carbon to primary product 104 (Sawnwood) from year 0, but ProportionsFromPrimaryToMarkets has rows for it only from year 5

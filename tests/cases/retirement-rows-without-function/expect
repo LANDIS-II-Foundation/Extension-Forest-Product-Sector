@@ -1,0 +1,5 @@
+# SimpleTier1 with retirement rows for PaperPackaging (200) starting in year 5, and
+# no year-5 row making it. That entry had no retirement function, so PaperPackaging
+# made from year 5 silently never retired.
+exit_zero: no
+stdout_contains: secondary product 200 (PaperPackaging) in market 300 has retirement rows starting in year 5, but no row of ProportionsFromPrimaryToSecondaryProducts starting in year 5 makes it
