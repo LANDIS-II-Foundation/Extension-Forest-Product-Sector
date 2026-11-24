@@ -30,9 +30,9 @@ ProportionsFromForestToMills
 	0		1			99	BioToFPSX	1		SawnwoodMill			0.5
 	0		1			99	BioToFPSX	2		WoodbasedPanelsMill		0.25
 	0		1			99	BioToFPSX	3		Chipmill				0.25
-	0		1			99	SnagToFPS	1		SawnwoodMill			0.2
-	0		1			99	SnagToFPS	2		WoodbasedPanelsMill		0.0
-	0		1			99	SnagToFPS	3		Chipmill				0.8
+	0		1			99	SnagsToFPS	1		SawnwoodMill			0.2
+	0		1			99	SnagsToFPS	2		WoodbasedPanelsMill		0.0
+	0		1			99	SnagsToFPS	3		Chipmill				0.8
 
 ProportionsFromMillsToPrimaryWoodProducts
 >> Time	Mill Code 	Mill Name 		Primary		Primary			Mill X

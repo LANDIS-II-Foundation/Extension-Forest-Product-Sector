@@ -1,0 +1,5 @@
+# SimpleTier1 with SnagToFPS written SnagsToFPS, the name of the column the
+# pool reads in ForCS's log_FluxDOM.csv, which is now the pool's name.
+# The run produces exactly the output of the example.
+exit_zero: yes
+matches_example: SimpleTier1Ex
