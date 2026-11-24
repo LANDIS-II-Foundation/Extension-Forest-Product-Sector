@@ -320,6 +320,18 @@ namespace Landis.Extension.FPS
                             //this time, we also need to find out what function to use for retirement for this output type and year.
                             // (type = product, pool = market)
                             double amt_remain = so.SecondOutputAmount;
+
+                            //  Carbon recycled into this pool left its old product in the year
+                            //  before this pool's year and became this product in that year, so
+                            //  it is reported in this product's stock at the end of that year.
+                            //  It starts to decay in this pool's year, with the rest of the pool.
+                            //  Written once per pool, so (YearCreated, YearReported, Market,
+                            //  FromPool) stays unique; YearCreated is this pool's year.
+                            if (so.RecycledAmount > 0)
+                            {
+                                rawf.Write("5, {0}, {1}, {2}, {3}, {4}, 0, {5}\n", so.SecondOutputYear, so.SecondOutputYear - 1, so.SecondOutputPool, so.SecondOutputType, so.SecondOutputType, so.RecycledAmount);
+                            }
+
                             //loop over  years of decay
                             for (int jyr = 1; jyr <= (YearsAfter + maxyears - harvyr); jyr++)
                             {
@@ -355,10 +367,14 @@ namespace Landis.Extension.FPS
                                     }
                                     if (amt_remain < 0) { amt_remain = 0; }
 
+                                    //  Codes below 1000 are user-defined secondary products, so this
+                                    //  is recycling; 1000 and above are the fixed disposal pools
+                                    //  (user guide, Table 1).
                                     if (pcode < 1000)
                                     {
-                                        //the output is going into another pool for processing, so add it to the output pools for later years
-                                        //TODO TEST THIS
+                                        //  Recycled carbon goes into this product's pool for next year,
+                                        //  which is processed in a later pass of the year loop. It is
+                                        //  reported as stock this year when that pool is processed.
                                         SecOut = lSec.GetSecondOutput(poolyr, pcode, so.SecondOutputPool);
                                         if (SecOut == null)
                                         {
@@ -366,6 +382,8 @@ namespace Landis.Extension.FPS
                                             lSec.AddSecondOutput(SecOut);
                                         }
                                         SecOut.SecondOutputAmount += OutAmount;
+                                        SecOut.RecycledAmount += OutAmount;
+                                        so.AllocatedAmount += OutAmount;
                                     }
                                     else
                                     {

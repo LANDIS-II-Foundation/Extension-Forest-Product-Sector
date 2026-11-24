@@ -254,6 +254,9 @@ namespace Landis.Extension.FPS
         private int m_market;
         public double SecondOutputAmount;
         public double AllocatedAmount;
+        //  The part of SecondOutputAmount that secondary products recycled into
+        //  this pool in the year before SecondOutputYear (see ProcessSecondToRetirement).
+        public double RecycledAmount;
 
         public SecondOutput(int iyr, int imarket, int imill)
         {
@@ -262,6 +265,7 @@ namespace Landis.Extension.FPS
             m_market = imarket;
             SecondOutputAmount = 0;
             AllocatedAmount = 0;
+            RecycledAmount = 0;
         }
         public int SecondOutputYear
         {

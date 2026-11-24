@@ -15,6 +15,11 @@
 #   stdout_contains: <text>    text appears in FPSM's combined output
 #   log_contains: <text>       text appears in FPS_log.txt
 #   log_empty: yes             FPS_log.txt is empty
+#   log_lacks: <text>          text does not appear in FPS_log.txt
+#   product_balance: yes       tests/check-product-balance.R passes: the
+#                              secondary product stock in each year equals
+#                              the carbon made into products less the carbon
+#                              they sent to disposal pools
 #   matches_example: <name>    FPS_raw_out.csv is byte-identical to the output
 #                              committed under deploy/examples/<name>/
 #   matches_recorded: <file>   FPS_raw_out.csv is byte-identical to <file> in
@@ -73,6 +78,11 @@ for case_dir in "$ROOT"/tests/cases/*/; do
         grep -qF -- "$val" "$work/FPS_log.txt" 2>/dev/null || fail "FPS_log.txt did not contain: $val" ;;
       log_empty)
         [ -s "$work/FPS_log.txt" ] && fail "expected an empty FPS_log.txt" ;;
+      log_lacks)
+        grep -qF -- "$val" "$work/FPS_log.txt" 2>/dev/null && fail "FPS_log.txt contains: $val" ;;
+      product_balance)
+        Rscript "$ROOT/tests/check-product-balance.R" "$work" | sed 's/^/  | /'
+        [ "${PIPESTATUS[0]}" -eq 0 ] || fail "secondary product stock does not balance" ;;
       matches_example)
         if ! diff -q "$ROOT/deploy/examples/$val/FPS_raw_out.csv" "$work/FPS_raw_out.csv" >/dev/null 2>&1; then
           fail "FPS_raw_out.csv differs from deploy/examples/$val"

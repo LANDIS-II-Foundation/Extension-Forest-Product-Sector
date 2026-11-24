@@ -1,0 +1,8 @@
+# SimpleTier1 with secondary products that recycle: PaperPackaging (200) into
+# itself, Sawnwood (204) into Panels (209), and Panels into itself, so the
+# year t+1 Panels pool holds new production and carbon recycled from two
+# products. Recycled carbon counts as allocated, and it is in the receiving
+# product's stock in the year it is recycled, including the last reported year.
+exit_zero: yes
+log_lacks: Mismatch in pool allocations
+product_balance: yes
