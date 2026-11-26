@@ -1,0 +1,8 @@
+# As report-horizon-disposal, with YearsPostHarvest 0, so the final year is
+# the last harvest year, 10. Products and disposal pools made in that year
+# are decayed and reported in it, including the landfill carbon that does
+# not degrade.
+exit_zero: yes
+log_lacks: Mismatch in pool allocations
+product_balance: yes
+reports_through: 10

@@ -6,3 +6,4 @@
 exit_zero: yes
 log_lacks: Mismatch in pool allocations
 product_balance: yes
+reports_through: 20

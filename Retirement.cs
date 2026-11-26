@@ -221,6 +221,10 @@ namespace Landis.Extension.FPS
             int jyr = 0;
             int poolyr = 0;
             int outyr =0;
+            //  Output runs to the final year: the last harvest year plus YearsPostHarvest.
+            //  Every pool is decayed and reported through it, including pools made in it.
+            int finalyr = YearsAfter + maxyears;
+            int lastyr = 0;     //the last year written for the pool being processed
             double eCO2 = 0;
             double potCH4 = 0;
             double newCO2 = 0;
@@ -292,12 +296,16 @@ namespace Landis.Extension.FPS
                                         lOL = lOut.FindOutputList(so.SpecialOutputYear, pcode, 0);
                                         lOL.AddAmount(StartAmount);
                                     }
-                                    for (jyr = 1; jyr <= (YearsAfter + maxyears - so.SpecialOutputYear); jyr++)
+                                    //  jyr = 1 is the pool's own year, so the last pass, jyr =
+                                    //  finalyr - SpecialOutputYear + 1, is the final year.
+                                    lastyr = so.SpecialOutputYear - 1;
+                                    for (jyr = 1; jyr <= (finalyr - so.SpecialOutputYear + 1); jyr++)
                                     {
                                         RespirationMatchFound = false;
 
                                         poolyr = so.SpecialOutputYear + jyr;
                                         outyr = poolyr - 1; //simulation year that the output occurs
+                                        lastyr = outyr;
 
 /*                                        if ((so.SpecialOutputYear == 1 || so.SpecialOutputYear == 2) && (outyr == 1 || outyr == 2) && (so.SpecialOutputType == 1000 || so.SpecialOutputType == 1001 || so.SpecialOutputType == 1003 || so.SpecialOutputType == 1004 )) 
                                         {
@@ -451,37 +459,23 @@ namespace Landis.Extension.FPS
                                         if (amt_remain <= 0) break;
                                     }
 
-                                    //if we broke the loop because amt_remain = 1, but there is still stuff in the amt_notdecay pool, then we need to keep printing that pool
+                                    //  If the degradable part was used up before the final year, the
+                                    //  part that does not degrade is still there: report it through
+                                    //  the final year, starting the year after the last one written.
                                     if (ityp == 1 && amt_notdecay > 0)
                                     {
-                                        for (jyr = poolyr - so.SpecialOutputYear + 1; jyr <= (YearsAfter + maxyears - so.SpecialOutputYear); jyr++)
+                                        for (outyr = lastyr + 1; outyr <= finalyr; outyr++)
                                         {
-                                            outyr = so.SpecialOutputYear + jyr -1; //simulation year that the output occurs
                                             rawf.Write("4, {0}, {1}, 0, {2}, {3}, 0, {4} \n", so.SpecialOutputYear, outyr, so.SpecialOutputType, so.SpecialOutputType, amt_notdecay);
                                             lOL = lOut.FindOutputList(outyr, so.SpecialOutputType, 0);
                                             lOL.AddAmount(amt_notdecay);
                                         }
                                     }
 
-                                    //Print any remaining SpecialOutputAmount into a final year
+                                    //  What remains at the end of the final year was reported as stock
+                                    //  in that year's pass above, so it is allocated, not written again.
                                     so.AllocatedAmount += amt_remain;
                                     so.AllocatedAmount += amt_notdecay;
-
-                                    if (amt_remain > 0)
-                                    {
-                                        if (ityp == 1)
-                                        {
-                                            rawf.Write("{0}, {1}, {2}, 0, {3}, {4}, 0, {5} \n", ityp, so.SpecialOutputYear, (YearsAfter + maxyears), pcode, pcode, amt_remain);
-                                            lOL = lOut.FindOutputList((YearsAfter + maxyears), pcode, 0);
-                                        }
-                                        else
-                                        {
-                                            rawf.Write("{0}, {1}, {2}, 0, {3}, {4}, 0, {5}  \n", ityp, so.SpecialOutputYear, (YearsAfter + maxyears), so.SpecialOutputType, so.SpecialOutputType, amt_remain);
-                                            lOL = lOut.FindOutputList((YearsAfter + maxyears), so.SpecialOutputType, 0);
-                                        }
-                                        lOL.AddAmount(amt_remain);
-
-                                    }
 
                                     double diff = Math.Abs(so.AllocatedAmount - so.SpecialAmount);
                                     totdiff += diff;

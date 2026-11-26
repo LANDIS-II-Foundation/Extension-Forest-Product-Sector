@@ -1,0 +1,11 @@
+# SimpleTier1 with secondary products retiring to every kind of disposal
+# pool: landfill split into degradable and non-degradable parts (1000, 1004),
+# dumps (1001, 1003) and fuel (1005), with PaperPackaging also recycling into
+# itself. Degradable landfill paper (1010) has a half-life of 0.5 years, so it
+# is used up years before the end while the non-degradable part remains.
+# Harvest runs to year 10 and YearsPostHarvest is 10, so every pool is
+# reported through year 20, and nothing after it.
+exit_zero: yes
+log_lacks: Mismatch in pool allocations
+product_balance: yes
+reports_through: 20
