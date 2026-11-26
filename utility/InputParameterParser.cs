@@ -42,6 +42,14 @@ namespace Landis.Extension.FPS
         private const int FirstSpecialCode = 1000;
         //  Market for tables that have no market column.
         private const int NoMarket = -1;
+        //  The pools ProcessRetirementToDisposal() can decay (its Poollist):
+        //  1000 LandfillWood, 1001 DumpWood, 1003 DumpPaper,
+        //  1009 DegradableLandfillWood and 1010 DegradableLandfillPaper.
+        private static readonly int[] DecayingPools = new int[] { 1000, 1001, 1003, 1009, 1010 };
+        //  The gases a pool can go to directly: 2006 E_CO2 and 2007 E_CH4.
+        private static readonly int[] Gases = new int[] { 2006, 2007 };
+        //  Destination of a pool that decays as a whole (user guide: "N/A").
+        private const int DecaysAsWhole = 2999;
 
         //  A row of a proportions table that moves carbon (proportion above 0),
         //  kept so that the tables can be checked against each other once all
@@ -482,7 +490,7 @@ namespace Landis.Extension.FPS
             //while (!AtEndOfInput && (CurrentName != "No Section To Follow" && CurrentName != Names.SnagData))
             //while (!AtEndOfInput && (CurrentName != "No Section To Follow"))
 
-            CheckTables();
+            CheckTables(parameters);
 
             return parameters;
         }
@@ -511,13 +519,14 @@ namespace Landis.Extension.FPS
         //  Checks that need more than one row or table. Each of these problems
         //  used to show, if at all, as lines in FPS_log.txt while the run lost
         //  or created carbon, so the run stops here instead, listing them all.
-        private void CheckTables()
+        private void CheckTables(InputParameters parameters)
         {
             List<string> problems = new List<string>();
             CheckUnusedRows(problems);
             CheckProportionTotals(problems);
             CheckRetirementPairs(problems);
             CheckDestinations(problems);
+            CheckDisposalRows(parameters, problems);
             if (problems.Count > 0)
                 throw new InputTablesException(problems);
         }
@@ -682,6 +691,65 @@ namespace Landis.Extension.FPS
         //  FPSM sends carbon in a pool of 1000 or more straight to
         //  ProportionsFromRetirementToDisposal, so rows of the mill, market and
         //  secondary product tables that start from such a code are never used.
+        //  ProcessDisposalProps() sorts each disposal row into one of three types,
+        //  and ProcessRetirementToDisposal() applies every row of a pool to the
+        //  whole pool, so a pool takes rows of one type only:
+        //    3: straight to gases (respiration -99); proportions add to 1;
+        //    2: decays as a whole (to 2999); one row, proportion 1;
+        //    1: a degradable share moves into a decaying pool, the rest stays;
+        //       one row, share above 0 and at most 1.
+        private void CheckDisposalRows(InputParameters parameters, List<string> problems)
+        {
+            foreach (RetirementToDisposal entry in parameters.ListRetireDisposal.ListRetirementToDisposal)
+            {
+                List<TableRow> rows = new List<TableRow>();
+                foreach (TableRow row in tableRows)
+                    if (row.Table == Names.RetirementToDisposal && row.Year == entry.BeginTime && row.From == entry.Pool)
+                        rows.Add(row);
+                string where = string.Format("{0}, {1}: pool {2} ({3}) from year {4}",
+                    Names.RetirementToDisposal, LineList(rows), entry.Pool, rows.Count > 0 ? rows[0].FromName : "", entry.BeginTime);
+
+                int[] count = new int[4];
+                double gasTotal = 0;
+                foreach (DisposalProp dp in entry.GetDisposalList())
+                {
+                    count[dp.RetireType] += 1;
+                    if (dp.RetireType == 3)
+                        gasTotal += dp.PropDecay;
+                }
+                int types = (count[1] > 0 ? 1 : 0) + (count[2] > 0 ? 1 : 0) + (count[3] > 0 ? 1 : 0);
+                if (types > 1)
+                {
+                    problems.Add(where + " mixes rows that go straight to gases, decay the whole pool, or move a share into a decaying pool. FPSM applies each row to the whole pool, so a mix counts its carbon twice. Use rows of one kind.");
+                    continue;
+                }
+
+                foreach (DisposalProp dp in entry.GetDisposalList())
+                {
+                    if (dp.RetireType == 3 && System.Array.IndexOf(Gases, dp.FinalPool) < 0)
+                        problems.Add(string.Format("{0} goes straight to {1}, which is not a gas: rows with respiration -99 go to 2006 (E_CO2) or 2007 (E_CH4).", where, dp.FinalPool));
+                    if ((dp.RetireType == 1 || dp.RetireType == 2) && dp.HalfLife <= 0)
+                        problems.Add(string.Format("{0} decays with a half-life of {1}; it must be above 0.", where, dp.HalfLife));
+                    if (dp.RetireType == 1 && System.Array.IndexOf(DecayingPools, dp.FinalPool) < 0)
+                        problems.Add(string.Format("{0} moves its degradable share into {1}, which FPSM cannot decay, so that carbon would be lost. Decaying pools are 1000, 1001, 1003, 1009 and 1010.", where, dp.FinalPool));
+                    if (dp.RetireType == 1 && dp.PropDecay > 1)
+                        problems.Add(string.Format("{0} moves a degradable share of {1} into {2}; a share is at most 1.", where, dp.PropDecay, dp.FinalPool));
+                }
+                if (count[3] > 0 && (gasTotal <= 0.9999 || gasTotal >= 1.0001))
+                    problems.Add(string.Format("{0}: the proportions going to gases add to {1}, not 1, so the rest would be lost.", where, gasTotal));
+                if (count[2] > 0)
+                {
+                    DisposalProp dp = entry.GetDisposalList()[0];
+                    if (System.Array.IndexOf(DecayingPools, entry.Pool) < 0)
+                        problems.Add(string.Format("{0} decays as a whole, but FPSM can decay only pools 1000, 1001, 1003, 1009 and 1010, so its carbon would be lost.", where));
+                    else if (count[2] > 1 || dp.PropDecay <= 0.9999 || dp.PropDecay >= 1.0001)
+                        problems.Add(string.Format("{0} decays as a whole, so it takes one row to {1} with proportion 1: FPSM ignores the proportion and decays all of the pool.", where, DecaysAsWhole));
+                }
+                if (count[1] > 1)
+                    problems.Add(string.Format("{0} moves a share into {1} decaying pools. FPSM keeps the rest of the pool undecayed once for each row, so it would count that part {1} times. Use one row.", where, count[1]));
+            }
+        }
+
         private static bool NeverReceivesCarbon(TableRow row)
         {
             return row.From >= FirstSpecialCode
