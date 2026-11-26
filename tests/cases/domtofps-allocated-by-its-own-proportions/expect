@@ -1,6 +1,6 @@
 # SimpleTier1 with a non-zero DOMtoFPS column in the DOM flux log, and
 # DOMtoFPS rows whose mill split (0 / 1.0 / 0) differs sharply from the
-# SnagToFPS split (0.2 / 0 / 0.8), so where the DOM carbon lands is visible.
+# SnagsToFPS split (0.2 / 0 / 0.8), so where the DOM carbon lands is visible.
 #
 # The DOM column is now allocated by its own proportions, so the carbon goes
 # to the panel mill rather than being split between sawnwood and chips as the
