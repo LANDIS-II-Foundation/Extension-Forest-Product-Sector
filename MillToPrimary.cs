@@ -284,6 +284,9 @@ namespace Landis.Extension.FPS
                 {
                     OutAmount = HarvAmount * pp.PropToPrimary;
                     pcode = pp.PrimaryOut;
+                    //  Mills and primary products share one set of codes, so a primary
+                    //  product whose code is also a mill code goes to that mill to be
+                    //  milled again.
                     if (lMP.FindMill(pcode))
                     {  //if true, then this output product is also in input product.
                         //so we need to find its information and deal with that.
@@ -295,14 +298,18 @@ namespace Landis.Extension.FPS
                             {
                                 OutAmount = recycle * pp2.PropToPrimary;
                                 pcode = pp2.PrimaryOut;
-                                //check to see if this is recycling again
+                                //  A product is milled again only once.
                                 if (lMP.FindMill(pcode))
                                 {
-                                    logf.Write("MillToPrimary: recycled materials are being recycled again. This option is not currently handled and C will be added to Landfill, year: {0}, from: {1}, to: {2}\n", iyr, lmp2.Mill, pcode);
-                                    lSO.AddtoSpecial(iyr, 1000, OutAmount);
-                                    AllocatedAmount += OutAmount;
-
+                                    throw new ApplicationException(string.Format(
+                                        "In year {0}, mill {1} sends primary product {2} to mill {2} to be milled again, "
+                                        + "and mill {2} sends product {3} to mill {3}. FPSM mills a product again only once. "
+                                        + "In ProportionsFromMillsToPrimaryWoodProducts, give product {3} a code that is not a mill code, "
+                                        + "or send it to another product.",
+                                        iyr, HarvMill, lmp2.Mill, pcode));
                                 }
+                                //  Codes below 1000 are user-defined primary products; 1000 and
+                                //  above are the fixed special pools (user guide, Table 1).
                                 else if (pcode < 1000)
                                 {
                                     PrimOut = GetPrimaryOutput(iyr, pcode);
@@ -323,11 +330,18 @@ namespace Landis.Extension.FPS
                         }
                         else
                         {
-                            logf.Write("No proportions found Mill To Primary during recycling, year: {0},from: {1}, to: {2}\n", iyr, lmp2.Mill, pcode);
-                            lSO.AddtoSpecial(iyr, 1000, OutAmount);
+                            //  The mill has rows, but none that start in or before this year.
+                            throw new ApplicationException(string.Format(
+                                "In year {0}, mill {1} sends primary product {2} to mill {2} to be milled again, "
+                                + "but ProportionsFromMillsToPrimaryWoodProducts has no rows for mill {2} that apply in year {0}. "
+                                + "Add rows for mill {2} with a start year of {0} or earlier. "
+                                + "{3:F2} tonnes of carbon would be discarded.",
+                                iyr, HarvMill, pcode, recycle));
                         }
 
                     }
+                    //  Codes below 1000 are user-defined primary products; 1000 and
+                    //  above are the fixed special pools (user guide, Table 1).
                     else if (pcode < 1000)
                     {
                         PrimOut = GetPrimaryOutput(iyr, pcode);
@@ -347,8 +361,11 @@ namespace Landis.Extension.FPS
             }
             else
             {
-                logf.Write("No proportions found Mill To Primary, year: {0}, product: {2}\n", iyr, HarvMill);
-
+                throw new ApplicationException(string.Format(
+                    "No proportions found in ProportionsFromMillsToPrimaryWoodProducts for year {0}, mill {1}. "
+                    + "Add rows for mill {1} with a start year of {0} or earlier. "
+                    + "{2:F2} tonnes of carbon would be discarded.",
+                    iyr, HarvMill, HarvAmount));
             }
             double diff = AllocatedAmount - HarvAmount;
             if ((diff > 0.0001) || (diff < -0.0001))

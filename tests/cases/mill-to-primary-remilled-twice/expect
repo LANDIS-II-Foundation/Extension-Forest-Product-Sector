@@ -1,0 +1,8 @@
+# SimpleTier1 with mill 1 making product 2 and mill 2 making product 3. Codes 2
+# and 3 are also mills, so mill 1's product is milled again at mill 2, and that
+# mill's product would be milled a second time at mill 3. FPSM mills a product
+# again only once; this used to send the carbon to LandfillWood (1000) with a
+# line in FPS_log.txt and exit 0. The run now stops.
+exit_zero: no
+stdout_contains: In year 1, mill 1 sends primary product 2 to mill 2 to be milled again, and mill 2 sends product 3 to mill 3.
+stdout_contains: FPSM mills a product again only once.

@@ -1,0 +1,6 @@
+# SimpleTier1 with the Chipmill rows of ProportionsFromForestToMills sending
+# carbon to mill 4, which has no rows in ProportionsFromMillsToPrimaryWoodProducts.
+# The parse-time chain check stops the run first; the run-time error in
+# MillToPrimary.cs, which replaced a crash on a bad format string, is a backstop.
+exit_zero: no
+stdout_contains: sends carbon to mill 4 (Chipmill) from year 0, but ProportionsFromMillsToPrimaryWoodProducts has no rows for it

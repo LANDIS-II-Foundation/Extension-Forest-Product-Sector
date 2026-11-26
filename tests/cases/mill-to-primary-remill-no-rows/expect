@@ -1,0 +1,6 @@
+# SimpleTier1 with mill 1 making product 2, which is also a mill, and mill 2's
+# rows starting in year 5, so in year 1 the product has nowhere to be milled.
+# The parse-time chain check stops the run first; the run-time error in
+# MillToPrimary.cs, which replaced a crash on a null, is a backstop.
+exit_zero: no
+stdout_contains: sends carbon to mill 2 (WoodbasedPanelsMill) from year 0, but ProportionsFromMillsToPrimaryWoodProducts has rows for it only from year 5
