@@ -1,0 +1,3 @@
+# SimpleTier1 with a BioToFPS value of -5, which was skipped.
+exit_zero: no
+stdout_contains: BioToFPS is -5; carbon sent to FPSM cannot be negative

@@ -42,10 +42,31 @@ namespace Landis.Extension.FPS
         private const int FirstSpecialCode = 1000;
         //  Market for tables that have no market column.
         private const int NoMarket = -1;
+        //  The pools ProcessRetirementToDisposal() can decay (its Poollist):
+        //  1000 LandfillWood, 1001 DumpWood, 1003 DumpPaper,
+        //  1009 DegradableLandfillWood and 1010 DegradableLandfillPaper.
+        private static readonly int[] DecayingPools = new int[] { 1000, 1001, 1003, 1009, 1010 };
+        //  The gases a pool can go to directly: 2006 E_CO2 and 2007 E_CH4.
+        private static readonly int[] Gases = new int[] { 2006, 2007 };
+        //  Destination of a pool that decays as a whole (user guide: "N/A").
+        private const int DecaysAsWhole = 2999;
+        //  The pools of the user guide's Table 1 that carbon can be sent to:
+        //  1000 LandfillWood, 1001 DumpWood, 1002 CombustionFuel, 1003 DumpPaper,
+        //  1004 LandfillPaper, 1005 Fuel, 1009 DegradableLandfillWood and
+        //  1010 DegradableLandfillPaper.
+        private static readonly int[] FixedPools = new int[] { 1000, 1001, 1002, 1003, 1004, 1005, 1009, 1010 };
+        //  The names of the fixed codes in the user guide's Table 1.
+        private static readonly Dictionary<int, string> FixedNames = new Dictionary<int, string>
+        {
+            { 1000, "LandfillWood" }, { 1001, "DumpWood" }, { 1002, "CombustionFuel" },
+            { 1003, "DumpPaper" }, { 1004, "LandfillPaper" }, { 1005, "Fuel" },
+            { 1009, "DegradableLandfillWood" }, { 1010, "DegradableLandfillPaper" },
+            { 2006, "E_CO2" }, { 2007, "E_CH4" }, { 2008, "PotentialCH4" }
+        };
 
         //  A row of a proportions table that moves carbon (proportion above 0),
-        //  kept so that the tables can be checked against each other once all
-        //  of them have been read.
+        //  or a Substitution row (for its names only), kept so that the tables
+        //  can be checked against each other once all of them have been read.
         private class TableRow
         {
             public string Table;
@@ -94,6 +115,9 @@ namespace Landis.Extension.FPS
             // when FPS is integrated with all of LANDIS, then the LANDIS value will replace the need for this.
             InputVar<int> CellLength = new InputVar<int>(Names.CellLength);
             ReadVar(CellLength);
+            //  CellLength scales g/m2 to tonnes per cell; values below 1 were taken as 1.
+            if (CellLength.Value.Actual < 1)
+                throw new InputValueException(CellLength.Value.String, "CellLength is {0}; it must be at least 1 (metres; 1 means no unit conversion)", CellLength.Value.Actual);
             parameters.CellLength = CellLength.Value;
 
             InputVar<int> YearsAfter = new InputVar<int>(Names.YearsAfter);
@@ -115,6 +139,9 @@ namespace Landis.Extension.FPS
 
             InputVar<int> OutputInt = new InputVar<int>(Names.OutputInt);
             ReadVar(OutputInt);
+            //  Not implemented: output is written for every year.
+            if (OutputInt.Value.Actual != 1)
+                throw new InputValueException(OutputInt.Value.String, "OutputInterval {0} is not implemented: FPSM writes output for every year, so it must be 1", OutputInt.Value.Actual);
             parameters.OutputInt = OutputInt.Value;
 
             //-------------------------
@@ -126,14 +153,22 @@ namespace Landis.Extension.FPS
             InputVar<string> groupName = new InputVar<string>("Group Name");
             
             string lastColumn = "the " + groupName.Name + " column";
+            HashSet<string> speciesListed = new HashSet<string>();
+            HashSet<int> speciesGroups = new HashSet<int>();
 
             nread = 0;
                 while (!AtEndOfInput && (CurrentName != Names.ForestToMill))
                 {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.SpeciesGroupTable);
                 ReadValue(speciesName, currentLine);
 
                 ReadValue(group, currentLine);
+                if (group.Value.Actual < 1 || group.Value.Actual >= FirstSpecialCode)
+                    throw new InputValueException(group.Value.String, "Species group {0} is not valid: groups are numbered 1 to 999 (99 means all species)", group.Value.Actual);
+                if (!speciesListed.Add(speciesName.Value.Actual))
+                    throw new InputValueException(speciesName.Value.String, "Species {0} is listed twice in SpeciesGroupTable; FPSM would use only its first group", speciesName.Value.Actual);
+                speciesGroups.Add(group.Value.Actual);
                 ReadValue(groupName, currentLine);
                 SpeciesGroup spg = new SpeciesGroup(group.Value, speciesName.Value);
                 parameters.ListSPG.Add(spg); 
@@ -163,17 +198,27 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.MilltoPrimary))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.ForestToMill);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.ForestToMill);
                 firstYear = 1;   //will have stopped before getting here...
  
                 ReadValue(nMU, currentLine);
+                //  The ManagementUnits map is not read: every cell is unit 1, and every
+                //  row was stored as unit 1 whatever this column said.
+                if (nMU.Value.Actual != 1)
+                    throw new InputValueException(nMU.Value.String, "Management unit {0}: FPSM does not read the ManagementUnits map yet and treats every cell as unit 1, so every row must be for unit 1", nMU.Value.Actual);
                 ReadValue(nSpGp, currentLine);
+                //  Species not listed in SpeciesGroupTable are in group 99 (all species).
+                if (nSpGp.Value.Actual != 99 && !speciesGroups.Contains(nSpGp.Value.Actual))
+                    throw new InputValueException(nSpGp.Value.String, "Species group {0} is not in SpeciesGroupTable, so no harvested carbon would use this row", nSpGp.Value.Actual);
                 ReadValue(sPool, currentLine);
                 ReadValue(nMill, currentLine);
+                CheckCode(nMill, "mill", true);
                 ReadValue(sTemp, currentLine);
                 ReadValue(dProp, currentLine);
+                CheckProportion(dProp);
 
                 int iPool = GetFPSPool(sPool);
                 RecordRow(Names.ForestToMill, nYear.Value, NoMarket, nSpGp.Value, iPool, sPool.Value.Actual, nMill.Value, sTemp.Value.Actual, dProp.Value);
@@ -204,17 +249,21 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.PrimarytoMarket))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.MilltoPrimary);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.MilltoPrimary);
                 firstYear = 1;   //will have stopped before getting here...
 
                 ReadValue(nMill, currentLine);
+                CheckCode(nMill, "mill", true);
                 ReadValue(sTemp, currentLine);
                 string fromName = sTemp.Value.Actual;
                 ReadValue(nPrimOut, currentLine);
+                CheckCode(nPrimOut, "primary product", true);
                 ReadValue(sTemp, currentLine);
                 ReadValue(dProp, currentLine);
+                CheckProportion(dProp);
                 RecordRow(Names.MilltoPrimary, nYear.Value, NoMarket, 0, nMill.Value, fromName, nPrimOut.Value, sTemp.Value.Actual, dProp.Value);
 
                 ProcessPrimOutProps(parameters, nYear.Value, nMill.Value, nPrimOut.Value, dProp.Value);
@@ -242,17 +291,21 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.PrimaryToSecond))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.PrimarytoMarket);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.PrimarytoMarket);
                 firstYear = 1;   //will have stopped before getting here...
 
                 ReadValue(nMill, currentLine);
+                CheckCode(nMill, "primary product", true);
                 ReadValue(sTemp, currentLine);
                 string fromName = sTemp.Value.Actual;
                 ReadValue(nMarketOut, currentLine);
+                CheckCode(nMarketOut, "market", false);
                 ReadValue(sTemp, currentLine);
                 ReadValue(dProp, currentLine);
+                CheckProportion(dProp);
                 RecordRow(Names.PrimarytoMarket, nYear.Value, NoMarket, 0, nMill.Value, fromName, nMarketOut.Value, sTemp.Value.Actual, dProp.Value);
 
                 ProcessMarketOutProps(parameters, nYear.Value, nMill.Value, nMarketOut.Value, dProp.Value);
@@ -285,18 +338,23 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.SecondToRetirement))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.PrimaryToSecond);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.PrimaryToSecond);
                 firstYear = 1;   //will have stopped before getting here...
 
                 ReadValue(nMarket, currentLine);
+                CheckCode(nMarket, "market", false);
                 ReadValue(nMill, currentLine);
+                CheckCode(nMill, "primary product", true);
                 ReadValue(sTemp, currentLine);
                 string fromName = sTemp.Value.Actual;
                 ReadValue(nSecond, currentLine);
+                CheckCode(nSecond, "secondary product", true);
                 ReadValue(sTemp, currentLine);
                 ReadValue(dProp, currentLine);
+                CheckProportion(dProp);
                 RecordRow(Names.PrimaryToSecond, nYear.Value, nMarket.Value, 0, nMill.Value, fromName, nSecond.Value, sTemp.Value.Actual, dProp.Value);
                 ReadValue(sFunction, currentLine);
                 ReadValue(Param1, currentLine);
@@ -330,23 +388,28 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.RetirementToDisposal))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.SecondToRetirement);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.SecondToRetirement);
                 firstYear = 1;   //will have stopped before getting here...
 
                 ReadValue(nMarket, currentLine);  
+                CheckCode(nMarket, "market", false);
                 ReadValue(nSecond, currentLine);    //secondary pool value
-                ReadValue(sTemp, currentLine);
-                string fromName = sTemp.Value.Actual;
-                ReadValue(nMill, currentLine);      //actually the retirement pool this time, not a mill
-                ReadValue(sTemp, currentLine);
-                ReadValue(dProp, currentLine);
-                RecordRow(Names.SecondToRetirement, nYear.Value, nMarket.Value, 0, nSecond.Value, fromName, nMill.Value, sTemp.Value.Actual, dProp.Value);
                 //  Only secondary products retire; codes of 1000 and above are
                 //  already disposal pools, which ProportionsFromRetirementToDisposal handles.
                 if (nSecond.Value >= FirstSpecialCode)
                     throw new InputValueException(nSecond.Value.String, "{0} is not a secondary product: codes of 1000 and above are disposal pools (user guide, Table 1), and their fate is set in {1}", nSecond.Value.Actual, Names.RetirementToDisposal);
+                CheckCode(nSecond, "secondary product", false);
+                ReadValue(sTemp, currentLine);
+                string fromName = sTemp.Value.Actual;
+                ReadValue(nMill, currentLine);      //actually the retirement pool this time, not a mill
+                CheckCode(nMill, "retirement destination", true);
+                ReadValue(sTemp, currentLine);
+                ReadValue(dProp, currentLine);
+                CheckProportion(dProp);
+                RecordRow(Names.SecondToRetirement, nYear.Value, nMarket.Value, 0, nSecond.Value, fromName, nMill.Value, sTemp.Value.Actual, dProp.Value);
 
                 ProcessRetirementProps(parameters, nYear.Value, nMarket.Value, nSecond.Value, nMill.Value, dProp.Value);
 
@@ -375,17 +438,20 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.Substitution))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.RetirementToDisposal);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.RetirementToDisposal);
                 firstYear = 1;   //will have stopped before getting here...
 
                 ReadValue(nSecond, currentLine);    //"special" pool value
+                CheckPool(nSecond);
                 ReadValue(sTemp, currentLine);
                 string fromName = sTemp.Value.Actual;
                 ReadValue(nMill, currentLine);      //another pool or gas
                 ReadValue(sTemp, currentLine);
                 ReadValue(dProp, currentLine);
+                CheckProportion(dProp);
                 RecordRow(Names.RetirementToDisposal, nYear.Value, NoMarket, 0, nSecond.Value, fromName, nMill.Value, sTemp.Value.Actual, dProp.Value);
                 ReadValue(dHalf, currentLine);
                 ReadValue(nResp, currentLine);    
@@ -414,15 +480,23 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput && (CurrentName != Names.LandfillGas))
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.Substitution);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.Substitution);
                 firstYear = 1;   //will have stopped before getting here...
 
                 ReadValue(nMarket, currentLine);    
+                CheckCode(nMarket, "market", false);
                 ReadValue(nMill, currentLine);      //primary output code
+                CheckCode(nMill, "primary product", false);
                 ReadValue(sTemp, currentLine);
+                //  Not a carbon flow; kept so that the name is checked against the code.
+                RecordRow(Names.Substitution, nYear.Value, nMarket.Value, 0, nMill.Value, sTemp.Value.Actual, -1, null, 1);
                 ReadValue(dSub, currentLine);
+                //  The share of the market where wood replaces other products (user guide).
+                if (dSub.Value.Actual < 0 || dSub.Value.Actual > 1)
+                    throw new InputValueException(dSub.Value.String, "Substitution ratio {0} is not a share: it must be from 0 to 1", dSub.Value.Actual);
                 ReadValue(dDisplace, currentLine);
 
                 ProcessSubstitution(parameters, nYear.Value, nMarket.Value, nMill.Value, dSub.Value, dDisplace.Value);
@@ -450,6 +524,7 @@ namespace Landis.Extension.FPS
             while (!AtEndOfInput)
             {
                 currentLine = new StringReader(CurrentLine);
+                CheckRepeatedRow(Names.LandfillGas);
 
                 ReadValue(nYear, currentLine);
                 bool bYrOK = CheckYear(firstYear, nYear.Value, Names.LandfillGas);
@@ -482,7 +557,7 @@ namespace Landis.Extension.FPS
             //while (!AtEndOfInput && (CurrentName != "No Section To Follow" && CurrentName != Names.SnagData))
             //while (!AtEndOfInput && (CurrentName != "No Section To Follow"))
 
-            CheckTables();
+            CheckTables(parameters);
 
             return parameters;
         }
@@ -511,15 +586,34 @@ namespace Landis.Extension.FPS
         //  Checks that need more than one row or table. Each of these problems
         //  used to show, if at all, as lines in FPS_log.txt while the run lost
         //  or created carbon, so the run stops here instead, listing them all.
-        private void CheckTables()
+        private void CheckTables(InputParameters parameters)
         {
             List<string> problems = new List<string>();
             CheckUnusedRows(problems);
             CheckProportionTotals(problems);
             CheckRetirementPairs(problems);
             CheckDestinations(problems);
+            CheckDisposalRows(parameters, problems);
+            List<string> warnings = new List<string>();
+            CheckNames(warnings);
+            WriteWarnings(warnings);
             if (problems.Count > 0)
                 throw new InputTablesException(problems);
+        }
+
+        //  FPSM runs on codes; names are for people and are often spelled
+        //  differently from one table to the next. A name that disagrees with
+        //  its code is therefore written to FPS_log.txt and the console, and the
+        //  run goes on.
+        private static void WriteWarnings(List<string> warnings)
+        {
+            foreach (string warning in warnings)
+            {
+                string line = "Warning: " + warning;
+                System.Console.WriteLine(line);
+                if (Program.logFile != null)
+                    Program.logFile.WriteLine(line);
+            }
         }
 
         //  Proportions out of one source in one start year must add to 1.
@@ -645,8 +739,9 @@ namespace Landis.Extension.FPS
                 }
                 else
                 {
-                    //  A secondary product made in ProportionsFromPrimaryToSecondaryProducts:
-                    //  CheckRetirementPairs covers its retirement rows.
+                    //  A secondary product made in ProportionsFromPrimaryToSecondaryProducts
+                    //  (CheckRetirementPairs covers its retirement rows), or a
+                    //  Substitution row, which moves no carbon.
                     continue;
                 }
 
@@ -682,6 +777,161 @@ namespace Landis.Extension.FPS
         //  FPSM sends carbon in a pool of 1000 or more straight to
         //  ProportionsFromRetirementToDisposal, so rows of the mill, market and
         //  secondary product tables that start from such a code are never used.
+        //  ProcessDisposalProps() sorts each disposal row into one of three types,
+        //  and ProcessRetirementToDisposal() applies every row of a pool to the
+        //  whole pool, so a pool takes rows of one type only:
+        //    3: straight to gases (respiration -99); proportions add to 1;
+        //    2: decays as a whole (to 2999); one row, proportion 1;
+        //    1: a degradable share moves into a decaying pool, the rest stays;
+        //       one row, share above 0 and at most 1.
+        private void CheckDisposalRows(InputParameters parameters, List<string> problems)
+        {
+            foreach (RetirementToDisposal entry in parameters.ListRetireDisposal.ListRetirementToDisposal)
+            {
+                List<TableRow> rows = new List<TableRow>();
+                foreach (TableRow row in tableRows)
+                    if (row.Table == Names.RetirementToDisposal && row.Year == entry.BeginTime && row.From == entry.Pool)
+                        rows.Add(row);
+                string where = string.Format("{0}, {1}: pool {2} ({3}) from year {4}",
+                    Names.RetirementToDisposal, LineList(rows), entry.Pool, rows.Count > 0 ? rows[0].FromName : "", entry.BeginTime);
+
+                int[] count = new int[4];
+                double gasTotal = 0;
+                foreach (DisposalProp dp in entry.GetDisposalList())
+                {
+                    count[dp.RetireType] += 1;
+                    if (dp.RetireType == 3)
+                        gasTotal += dp.PropDecay;
+                }
+                int types = (count[1] > 0 ? 1 : 0) + (count[2] > 0 ? 1 : 0) + (count[3] > 0 ? 1 : 0);
+                if (types > 1)
+                {
+                    problems.Add(where + " mixes rows that go straight to gases, decay the whole pool, or move a share into a decaying pool. FPSM applies each row to the whole pool, so a mix counts its carbon twice. Use rows of one kind.");
+                    continue;
+                }
+
+                foreach (DisposalProp dp in entry.GetDisposalList())
+                {
+                    if (dp.RetireType == 3 && System.Array.IndexOf(Gases, dp.FinalPool) < 0)
+                        problems.Add(string.Format("{0} goes straight to {1}, which is not a gas: rows with respiration -99 go to 2006 (E_CO2) or 2007 (E_CH4).", where, dp.FinalPool));
+                    if ((dp.RetireType == 1 || dp.RetireType == 2) && dp.HalfLife <= 0)
+                        problems.Add(string.Format("{0} decays with a half-life of {1}; it must be above 0.", where, dp.HalfLife));
+                    if (dp.RetireType == 1 && System.Array.IndexOf(DecayingPools, dp.FinalPool) < 0)
+                        problems.Add(string.Format("{0} moves its degradable share into {1}, which FPSM cannot decay, so that carbon would be lost. Decaying pools are 1000, 1001, 1003, 1009 and 1010.", where, dp.FinalPool));
+                    if (dp.RetireType == 1 && dp.PropDecay > 1)
+                        problems.Add(string.Format("{0} moves a degradable share of {1} into {2}; a share is at most 1.", where, dp.PropDecay, dp.FinalPool));
+                }
+                if (count[3] > 0 && (gasTotal <= 0.9999 || gasTotal >= 1.0001))
+                    problems.Add(string.Format("{0}: the proportions going to gases add to {1}, not 1, so the rest would be lost.", where, gasTotal));
+                if (count[2] > 0)
+                {
+                    DisposalProp dp = entry.GetDisposalList()[0];
+                    if (System.Array.IndexOf(DecayingPools, entry.Pool) < 0)
+                        problems.Add(string.Format("{0} decays as a whole, but FPSM can decay only pools 1000, 1001, 1003, 1009 and 1010, so its carbon would be lost.", where));
+                    else if (count[2] > 1 || dp.PropDecay <= 0.9999 || dp.PropDecay >= 1.0001)
+                        problems.Add(string.Format("{0} decays as a whole, so it takes one row to {1} with proportion 1: FPSM ignores the proportion and decays all of the pool.", where, DecaysAsWhole));
+                }
+                if (count[1] > 1)
+                    problems.Add(string.Format("{0} moves a share into {1} decaying pools. FPSM keeps the rest of the pool undecayed once for each row, so it would count that part {1} times. Use one row.", where, count[1]));
+            }
+        }
+
+        //  FPSM matches everything by code; the name columns are for people only.
+        //  A name that disagrees with its code is therefore a sign that a row
+        //  sends carbon somewhere other than intended (as in a configuration
+        //  where pool 1004, LandfillPaper, was named DumpWood). Each code must
+        //  keep one name throughout, in every table including Substitution. A
+        //  fixed code (1000 and above) may be renamed, but not to the Table 1
+        //  name of another fixed code.
+        private void CheckNames(List<string> warnings)
+        {
+            List<string[]> uses = new List<string[]>();  //  kind, code, name, table, line, role
+            foreach (TableRow row in tableRows)
+            {
+                if (row.Table != Names.ForestToMill)
+                    AddNameUse(uses, row, row.From, row.FromName, FromRole(row));
+                AddNameUse(uses, row, row.To, row.ToName, ToRole(row));
+            }
+
+            Dictionary<string, string[]> first = new Dictionary<string, string[]>();
+            HashSet<string> reported = new HashSet<string>();
+            foreach (string[] use in uses)
+            {
+                string key = use[0] + "|" + use[1];
+                if (!first.ContainsKey(key))
+                {
+                    first[key] = use;
+                    continue;
+                }
+                string[] was = first[key];
+                if (NameKey(was[2]) == NameKey(use[2]) || !reported.Add(key))
+                    continue;
+                string shared = was[5] != use[5]
+                    ? " Mills and primary products share codes: a primary product with a mill's code goes back through that mill."
+                    : "";
+                warnings.Add(string.Format("{0}, line {1}: {2} {3} is named \"{4}\" here but \"{5}\" in {6}, line {7}. FPSM matches by code only, so check which one this row means.{8}",
+                    use[3], use[4], use[5], use[1], use[2], was[2], was[3], was[4], shared));
+            }
+
+            foreach (string[] use in uses)
+            {
+                int code = int.Parse(use[1]);
+                if (code < FirstSpecialCode)
+                    continue;
+                foreach (KeyValuePair<int, string> fixedName in FixedNames)
+                {
+                    if (fixedName.Key != code && NameKey(fixedName.Value) == NameKey(use[2])
+                        && reported.Add("fixed|" + use[1] + "|" + use[2]))
+                    {
+                        string own;
+                        if (!FixedNames.TryGetValue(code, out own))
+                            own = "not in Table 1";
+                        warnings.Add(string.Format("{0}, line {1}: pool {2} is named \"{3}\", the user guide's name for pool {4}. Codes of 1000 and above have fixed meanings ({2} is {5}), so this row sends carbon to {2}, not {4}.",
+                            use[3], use[4], code, use[2], fixedName.Key, own));
+                    }
+                }
+            }
+        }
+
+        //  Codes are matched within a kind: mills and primary products share
+        //  one set of codes, markets and secondary products have their own, and
+        //  codes of 1000 and above are FPSM's fixed pools wherever they appear.
+        private static void AddNameUse(List<string[]> uses, TableRow row, int code, string name, string role)
+        {
+            //  2999 is not a pool (the user guide names it "N/A").
+            if (code == DecaysAsWhole || name == null || name.Trim().Length == 0)
+                return;
+            string kind = code >= FirstSpecialCode ? "pool"
+                : role == "market" ? "market"
+                : role == "secondary product" ? "secondary product"
+                : "mill or primary product";
+            uses.Add(new string[] { kind, code.ToString(), name.Trim(), row.Table, row.Line.ToString(), code >= FirstSpecialCode ? "pool" : role });
+        }
+
+        private static string FromRole(TableRow row)
+        {
+            if (row.Table == Names.MilltoPrimary) return "mill";
+            if (row.Table == Names.PrimarytoMarket || row.Table == Names.PrimaryToSecond || row.Table == Names.Substitution) return "primary product";
+            if (row.Table == Names.SecondToRetirement) return "secondary product";
+            return "pool";
+        }
+
+        private static string ToRole(TableRow row)
+        {
+            if (row.Table == Names.ForestToMill) return "mill";
+            if (row.Table == Names.MilltoPrimary) return "primary product";
+            if (row.Table == Names.PrimarytoMarket) return "market";
+            if (row.Table == Names.PrimaryToSecond || row.Table == Names.SecondToRetirement) return "secondary product";
+            return "pool";
+        }
+
+        //  Names compare without case or surrounding space; the guide spells
+        //  1009 and 1010 "Degradeable", the shipped examples "Degradable".
+        private static string NameKey(string name)
+        {
+            return name.Trim().ToLowerInvariant().Replace("degradeable", "degradable");
+        }
+
         private static bool NeverReceivesCarbon(TableRow row)
         {
             return row.From >= FirstSpecialCode
@@ -905,6 +1155,46 @@ namespace Landis.Extension.FPS
 
         }
 
+        //  A row that repeats an earlier row of its table exactly is counted
+        //  twice (a proportion) or ignored (Substitution, LandfillGasManagement),
+        //  so it is refused. Rows compare without case or spacing.
+        private Dictionary<string, int> rowsSeen = new Dictionary<string, int>();
+        private void CheckRepeatedRow(string table)
+        {
+            string key = table + "|" + string.Join(" ", CurrentLine.ToLowerInvariant().Split((char[])null, System.StringSplitOptions.RemoveEmptyEntries));
+            int earlier;
+            if (rowsSeen.TryGetValue(key, out earlier))
+                throw NewParseException("This row repeats line {0} of {1} exactly. FPSM would count it twice or ignore it; remove one of them.", earlier, table);
+            rowsSeen[key] = LineNumber;
+        }
+
+        //  User codes run from 1 to 999. Where a pool is allowed, a code of 1000
+        //  or more must be one of FixedPools.
+        private static void CheckCode(InputVar<int> code, string what, bool poolAllowed)
+        {
+            int c = code.Value.Actual;
+            if (c >= 1 && c < FirstSpecialCode)
+                return;
+            if (poolAllowed && System.Array.IndexOf(FixedPools, c) >= 0)
+                return;
+            if (poolAllowed)
+                throw new InputValueException(code.Value.String, "{0} is not a valid {1} code: use 1 to 999 for your own codes, or one of the pools in the user guide's Table 1 ({2})", c, what, string.Join(", ", FixedPools));
+            throw new InputValueException(code.Value.String, "{0} is not a valid {1} code: use 1 to 999 (codes of 1000 and above are FPSM's fixed pools)", c, what);
+        }
+
+        private static void CheckPool(InputVar<int> code)
+        {
+            if (System.Array.IndexOf(FixedPools, code.Value.Actual) < 0)
+                throw new InputValueException(code.Value.String, "{0} is not one of FPSM's pools; disposal applies to the pools of the user guide's Table 1 ({1})", code.Value.Actual, string.Join(", ", FixedPools));
+        }
+
+        //  Rows of 0 move no carbon and are skipped; a negative row was skipped too.
+        private static void CheckProportion(InputVar<double> proportion)
+        {
+            if (proportion.Value.Actual < 0)
+                throw new InputValueException(proportion.Value.String, "Proportion {0} is negative", proportion.Value.Actual);
+        }
+
         //  Function types from GetFunctionType(): 1 = exponential (parameter 1 is
         //  the half-life), 2 = gamma (both parameters), 3 = instant (none).
         private static bool SameFunction(SecondToRetirement tSR, int ftype, double p1, double p2)
@@ -990,10 +1280,13 @@ namespace Landis.Extension.FPS
                 tFM = new PrimaryToSecond(nYr, nMill, nMarket, dSub, dDisplace);
                 parameters.ListPrimarySecondary.Add(tFM);
             }
-            else
+            //  A second row for the same year, market and primary product was
+            //  ignored. One with different factors is refused here; an exact
+            //  repeat is refused by CheckRepeatedRow().
+            else if (tFM.SubstitutionFactor != dSub || tFM.DisplacementFactor != dDisplace)
             {
-                //Should this be possible???
-               
+                throw new InputValueException(nMill.ToString(), "{0} has a second row for year {1}, market {2}, primary product {3}, with different factors ({4}, {5}; the first row has {6}, {7}). FPSM uses only the first.",
+                    Names.Substitution, nYr, nMarket, nMill, dSub, dDisplace, tFM.SubstitutionFactor, tFM.DisplacementFactor);
             }
 
         }
@@ -1028,6 +1321,19 @@ namespace Landis.Extension.FPS
             }
             
             LFGasManagement tFM = null;   //SB: only one type of gas management per year (unlike other lists)
+
+            //  FindLFGasManagementList() returns the first row for a year, so a
+            //  second row for the same year was ignored. One with different values
+            //  is refused here; an exact repeat is refused by CheckRepeatedRow().
+            foreach (LFGasManagement earlier in parameters.ListLFGasManagement.ListLFGasManagement)
+            {
+                if (earlier.BeginTime != nYr)
+                    continue;
+                LFGasProp first = earlier.GetLFGasList()[0];
+                if (earlier.RespirationType != nCode || first.PropDecay != dProp || first.Efficiency != dEff || first.Oxidation != dOxidation)
+                    throw new InputValueException(nYr.ToString(), "{0} has a second row for year {1} with different values. There is one row per year, and FPSM uses only the first.", Names.LandfillGas, nYr);
+                tFM = earlier;
+            }
 
             // DR - could add code for true multi-element list
             // LFGasManagement tFM = parameters.ListLFGasManagement.FindLFGasManagementList(nYr, nMarket, nSecond, 1);

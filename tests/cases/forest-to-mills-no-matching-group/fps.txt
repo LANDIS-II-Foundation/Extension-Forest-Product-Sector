@@ -20,6 +20,7 @@ SpeciesGroupTable
 >>Species  Group  GroupName
 >>----------------------------------------------
  all	99	all
+ abiebals	98	Unharvested
  
 
 ProportionsFromForestToMills

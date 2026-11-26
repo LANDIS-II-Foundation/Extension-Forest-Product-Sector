@@ -1,0 +1,4 @@
+# SimpleTier1 with a second Substitution row for Sawnwood (104) in market 300, with
+# different factors. Only the first row was used, without a message.
+exit_zero: no
+stdout_contains: Substitution has a second row for year 0, market 300, primary product 104, with different factors

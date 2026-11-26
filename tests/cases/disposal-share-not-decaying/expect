@@ -1,0 +1,4 @@
+# SimpleTier1 with LandfillWood (1000) moving its degradable share into
+# LandfillPaper (1004), which FPSM cannot decay. That share was lost.
+exit_zero: no
+stdout_contains: pool 1000 (LandfillWood) from year 0 moves its degradable share into 1004, which FPSM cannot decay

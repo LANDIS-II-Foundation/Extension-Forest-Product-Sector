@@ -1,0 +1,4 @@
+# SimpleTier1 with a Substitution row repeated exactly, as in the ComplexTier3
+# example until this change. The second row was ignored.
+exit_zero: no
+stdout_contains: This row repeats line 85 of Substitution exactly

@@ -1,0 +1,4 @@
+# SimpleTier1 with its first harvest row at Time 0. Products are retired and
+# reported from year 1, so that carbon never appeared in the output.
+exit_zero: no
+stdout_contains: BioToFPS is 2928.056 at Time 0

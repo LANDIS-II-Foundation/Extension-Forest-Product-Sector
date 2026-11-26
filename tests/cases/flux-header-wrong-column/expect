@@ -1,0 +1,4 @@
+# SimpleTier1 reading the DOM log as the biomass log. FPSM read column 17
+# (SngOthToFast) as BioToFPS.
+exit_zero: no
+stdout_contains: column 17 is "SngOthToFast", not "BioToFPS"

@@ -1,0 +1,4 @@
+# SimpleTier1 with LandfillWood (1000) splitting shares into two decaying pools.
+# Each row kept the rest of the pool undecayed, so it was reported twice.
+exit_zero: no
+stdout_contains: pool 1000 (LandfillWood) from year 0 moves a share into 2 decaying pools

@@ -1,0 +1,4 @@
+# SimpleTier1 with a second LandfillGasManagement row for year 0. Only the first
+# was used, without a message.
+exit_zero: no
+stdout_contains: LandfillGasManagement has a second row for year 0 with different values

@@ -1,0 +1,6 @@
+# SimpleTier1 with the sawmill's (1) example rows starting in year 1 and listed
+# before a year-0 row that sends everything to 1002. Harvest starts in year 1, so
+# the year-1 rows apply and the output is the example's; the lookup used to take
+# the year-0 rows because they came later in the table.
+exit_zero: yes
+matches_example: SimpleTier1Ex
