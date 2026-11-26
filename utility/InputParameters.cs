@@ -112,6 +112,9 @@ namespace Landis.Extension.FPS
             }
         }
 
+        //  The ManagementUnits value for no map: every cell is management unit 1.
+        public const string NoManagementUnitMap = "none";
+
         public string ManagementUnitFile
         {
             get

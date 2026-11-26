@@ -1,0 +1,4 @@
+# SimpleTier1 with DumpWood (1001) decaying as a whole with proportion 0.5. FPSM
+# ignores the proportion and decays all of the pool.
+exit_zero: no
+stdout_contains: pool 1001 (DumpWood) from year 0 decays as a whole, so it takes one row to 2999 with proportion 1

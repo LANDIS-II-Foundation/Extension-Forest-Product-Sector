@@ -1,0 +1,3 @@
+# SimpleTier1 with species group 1000; groups are numbered 1 to 999.
+exit_zero: no
+stdout_contains: Species group 1000 is not valid

@@ -1,0 +1,5 @@
+# SimpleTier1 with the snag rows for species group 5, which SpeciesGroupTable does
+# not define. Every species is in group 99, so all snag carbon was dropped with
+# "No proportions found for Forest To Mills" log lines.
+exit_zero: no
+stdout_contains: Species group 5 is not in SpeciesGroupTable

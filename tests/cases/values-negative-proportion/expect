@@ -1,0 +1,3 @@
+# SimpleTier1 with a forest-to-mills proportion of -0.1, which was skipped like 0.
+exit_zero: no
+stdout_contains: Proportion -0.1 is negative

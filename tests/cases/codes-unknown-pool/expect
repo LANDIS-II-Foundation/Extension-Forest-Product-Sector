@@ -1,0 +1,4 @@
+# SimpleTier1 with PaperPackaging (200) retiring to 1006, which is not a pool in
+# the user guide's Table 1.
+exit_zero: no
+stdout_contains: 1006 is not a valid retirement destination code

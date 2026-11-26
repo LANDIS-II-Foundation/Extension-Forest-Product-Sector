@@ -1,0 +1,3 @@
+# A ManagementUnits map that does not exist.
+exit_zero: no
+stdout_contains: The ManagementUnits map "absent.gis" does not exist

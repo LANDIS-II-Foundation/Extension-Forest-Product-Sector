@@ -1,0 +1,5 @@
+# SimpleTier1 calling pool 1002 Burned in the retirement table and
+# InstantEmission elsewhere, as the ComplexTier3 example did with 1000 and 1003.
+# The run goes on, with a warning in FPS_log.txt.
+exit_zero: yes
+log_contains: pool 1002 is named "Burned" here but "InstantEmission" in ProportionsFromMillsToPrimaryWoodProducts, line 42

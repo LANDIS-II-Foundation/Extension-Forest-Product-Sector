@@ -1,0 +1,4 @@
+# SimpleTier1 with a BioToFPS value that is not a number, which stopped the run
+# with a FormatException that named no file or line.
+exit_zero: no
+stdout_contains: BioToFPS is "n/a", not a number

@@ -6,6 +6,8 @@
 # Each case directory holds:
 #   fps.txt  a configuration, normally the SimpleTier1 example with one token
 #            changed, so that the case isolates a single behaviour
+#   *.gis, *.tif, *.img  optional; maps the configuration names, such as a
+#            ManagementUnits map
 #   expect   what that configuration should do, as key: value lines
 #   log_Flux*.csv  optional; overrides the SimpleTier1 input of the same name,
 #            for cases the shipped inputs cannot exercise
@@ -13,6 +15,9 @@
 # Supported expectations:
 #   exit_zero: yes|no          FPSM exits 0, or does not
 #   stdout_contains: <text>    text appears in FPSM's combined output
+#   unit_allocation: <csv>     tests/check-unit-allocation.R passes: the carbon
+#                              each mill receives in each year is the harvest of
+#                              the management units that <csv> sends to it
 #   log_contains: <text>       text appears in FPS_log.txt
 #   log_empty: yes             FPS_log.txt is empty
 #   log_lacks: <text>          text does not appear in FPS_log.txt
@@ -49,7 +54,12 @@ for case_dir in "$ROOT"/tests/cases/*/; do
     [ -e "$override" ] && cp "$override" "$work/"
   done
   cp "$case_dir/fps.txt" "$work/"
+  for map in "$case_dir"*.gis "$case_dir"*.tif "$case_dir"*.img; do
+    [ -e "$map" ] && cp "$map" "$work/"
+  done
   cp "$BUILD_DIR"/*.dll "$BUILD_DIR"/*.json "$work/"
+  #  GDAL's native files, used when a map is read.
+  [ -d "$BUILD_DIR/runtimes" ] && cp -r "$BUILD_DIR/runtimes" "$work/"
 
   out=$(docker run --rm -v "$work:/work" -w /work "$IMAGE" bash -c '
     core=$(find /opt -name Landis.Core.dll -print -quit 2>/dev/null)
@@ -74,6 +84,9 @@ for case_dir in "$ROOT"/tests/cases/*/; do
         ;;
       stdout_contains)
         echo "$out" | grep -qF -- "$val" || fail "output did not contain: $val" ;;
+      unit_allocation)
+        Rscript "$ROOT/tests/check-unit-allocation.R" "$work" "$case_dir" "$val" | sed 's/^/  | /'
+        [ "${PIPESTATUS[0]}" -eq 0 ] || fail "mill totals do not follow the management units" ;;
       log_contains)
         grep -qF -- "$val" "$work/FPS_log.txt" 2>/dev/null || fail "FPS_log.txt did not contain: $val" ;;
       log_empty)

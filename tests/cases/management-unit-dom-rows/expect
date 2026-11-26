@@ -1,0 +1,8 @@
+# SimpleTier1 with the two-unit map of management-unit-two-units and the DOM
+# flux log of domtofps-allocated-by-its-own-proportions, whose DOMtoFPS column
+# has carbon in both units. Both units have BioToFPS and SnagsToFPS rows, but
+# only unit 1 has DOMtoFPS rows, so the run stops before any carbon is
+# allocated and names DOMtoFPS in unit 2. Looking the DOM column up under the
+# snag rows, as the harvest loop did before #9, would find no gap here.
+exit_zero: no
+stdout_contains: has no rows for management unit 2, species group 99 that apply to DOMtoFPS

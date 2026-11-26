@@ -1,0 +1,3 @@
+# A map one column short of the flux logs, which have carbon in column 9.
+exit_zero: no
+stdout_contains: lies outside the ManagementUnits map (8 rows by 8 columns)

@@ -1,0 +1,4 @@
+# SimpleTier1 with its LandfillGasManagement row repeated. The second row was
+# ignored.
+exit_zero: no
+stdout_contains: This row repeats line 91 of LandfillGasManagement exactly
