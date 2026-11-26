@@ -14,6 +14,12 @@ namespace Landis.Extension.FPS
 {
     public class UtilFunctions
     {
+        //  ityp is the retirement function, numbered as GetFunctionType() in the parser
+        //  reads it; t counts years from 1, the year the product is made. The value means
+        //  different things by function, and ProcessSecondToRetirement() reads it that way:
+        //    1 exponential: the share of the starting amount that REMAINS at the end of year t
+        //    2 gamma:       the share of the starting amount that is REMOVED in year t
+        //    3 instant:     the share that remains, 0: all of it retires in its first year
 		public double GetProportion(int ityp, int t, double param1, double param2)
         {
             double prop = 1;
@@ -23,7 +29,7 @@ namespace Landis.Extension.FPS
 			else if (ityp == 2)
             { prop = Gamma(t, param1, param2); }
 			else if (ityp == 3)
-            { prop = 1;  } // instant
+            { prop = 0;  } // instant
 
             return prop;
         }

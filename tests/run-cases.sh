@@ -20,6 +20,10 @@
 #                              secondary product stock in each year equals
 #                              the carbon made into products less the carbon
 #                              they sent to disposal pools
+#   retires_in_first_year: <code>  tests/check-first-year-retirement.R
+#                              passes: every pool of that secondary
+#                              product retires all its carbon in the
+#                              year it is made
 #   matches_example: <name>    FPS_raw_out.csv is byte-identical to the output
 #                              committed under deploy/examples/<name>/
 #   matches_recorded: <file>   FPS_raw_out.csv is byte-identical to <file> in
@@ -83,6 +87,9 @@ for case_dir in "$ROOT"/tests/cases/*/; do
       product_balance)
         Rscript "$ROOT/tests/check-product-balance.R" "$work" | sed 's/^/  | /'
         [ "${PIPESTATUS[0]}" -eq 0 ] || fail "secondary product stock does not balance" ;;
+      retires_in_first_year)
+        Rscript "$ROOT/tests/check-first-year-retirement.R" "$work" "$val" | sed 's/^/  | /'
+        [ "${PIPESTATUS[0]}" -eq 0 ] || fail "product $val does not retire fully in its first year" ;;
       matches_example)
         if ! diff -q "$ROOT/deploy/examples/$val/FPS_raw_out.csv" "$work/FPS_raw_out.csv" >/dev/null 2>&1; then
           fail "FPS_raw_out.csv differs from deploy/examples/$val"
