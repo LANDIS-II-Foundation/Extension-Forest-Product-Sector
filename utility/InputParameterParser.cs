@@ -42,10 +42,26 @@ namespace Landis.Extension.FPS
         private const int FirstSpecialCode = 1000;
         //  Market for tables that have no market column.
         private const int NoMarket = -1;
+        //  The pools ProcessRetirementToDisposal() can decay (its Poollist):
+        //  1000 LandfillWood, 1001 DumpWood, 1003 DumpPaper,
+        //  1009 DegradableLandfillWood and 1010 DegradableLandfillPaper.
+        private static readonly int[] DecayingPools = new int[] { 1000, 1001, 1003, 1009, 1010 };
+        //  The gases a pool can go to directly: 2006 E_CO2 and 2007 E_CH4.
+        private static readonly int[] Gases = new int[] { 2006, 2007 };
+        //  Destination of a pool that decays as a whole (user guide: "N/A").
+        private const int DecaysAsWhole = 2999;
+        //  The names of the fixed codes in the user guide's Table 1.
+        private static readonly Dictionary<int, string> FixedNames = new Dictionary<int, string>
+        {
+            { 1000, "LandfillWood" }, { 1001, "DumpWood" }, { 1002, "CombustionFuel" },
+            { 1003, "DumpPaper" }, { 1004, "LandfillPaper" }, { 1005, "Fuel" },
+            { 1009, "DegradableLandfillWood" }, { 1010, "DegradableLandfillPaper" },
+            { 2006, "E_CO2" }, { 2007, "E_CH4" }, { 2008, "PotentialCH4" }
+        };
 
         //  A row of a proportions table that moves carbon (proportion above 0),
-        //  kept so that the tables can be checked against each other once all
-        //  of them have been read.
+        //  or a Substitution row (for its names only), kept so that the tables
+        //  can be checked against each other once all of them have been read.
         private class TableRow
         {
             public string Table;
@@ -422,6 +438,8 @@ namespace Landis.Extension.FPS
                 ReadValue(nMarket, currentLine);    
                 ReadValue(nMill, currentLine);      //primary output code
                 ReadValue(sTemp, currentLine);
+                //  Not a carbon flow; kept so that the name is checked against the code.
+                RecordRow(Names.Substitution, nYear.Value, nMarket.Value, 0, nMill.Value, sTemp.Value.Actual, -1, null, 1);
                 ReadValue(dSub, currentLine);
                 ReadValue(dDisplace, currentLine);
 
@@ -482,7 +500,7 @@ namespace Landis.Extension.FPS
             //while (!AtEndOfInput && (CurrentName != "No Section To Follow" && CurrentName != Names.SnagData))
             //while (!AtEndOfInput && (CurrentName != "No Section To Follow"))
 
-            CheckTables();
+            CheckTables(parameters);
 
             return parameters;
         }
@@ -511,15 +529,34 @@ namespace Landis.Extension.FPS
         //  Checks that need more than one row or table. Each of these problems
         //  used to show, if at all, as lines in FPS_log.txt while the run lost
         //  or created carbon, so the run stops here instead, listing them all.
-        private void CheckTables()
+        private void CheckTables(InputParameters parameters)
         {
             List<string> problems = new List<string>();
             CheckUnusedRows(problems);
             CheckProportionTotals(problems);
             CheckRetirementPairs(problems);
             CheckDestinations(problems);
+            CheckDisposalRows(parameters, problems);
+            List<string> warnings = new List<string>();
+            CheckNames(warnings);
+            WriteWarnings(warnings);
             if (problems.Count > 0)
                 throw new InputTablesException(problems);
+        }
+
+        //  FPSM runs on codes; names are for people and are often spelled
+        //  differently from one table to the next. A name that disagrees with
+        //  its code is therefore written to FPS_log.txt and the console, and the
+        //  run goes on.
+        private static void WriteWarnings(List<string> warnings)
+        {
+            foreach (string warning in warnings)
+            {
+                string line = "Warning: " + warning;
+                System.Console.WriteLine(line);
+                if (Program.logFile != null)
+                    Program.logFile.WriteLine(line);
+            }
         }
 
         //  Proportions out of one source in one start year must add to 1.
@@ -645,8 +682,9 @@ namespace Landis.Extension.FPS
                 }
                 else
                 {
-                    //  A secondary product made in ProportionsFromPrimaryToSecondaryProducts:
-                    //  CheckRetirementPairs covers its retirement rows.
+                    //  A secondary product made in ProportionsFromPrimaryToSecondaryProducts
+                    //  (CheckRetirementPairs covers its retirement rows), or a
+                    //  Substitution row, which moves no carbon.
                     continue;
                 }
 
@@ -682,6 +720,161 @@ namespace Landis.Extension.FPS
         //  FPSM sends carbon in a pool of 1000 or more straight to
         //  ProportionsFromRetirementToDisposal, so rows of the mill, market and
         //  secondary product tables that start from such a code are never used.
+        //  ProcessDisposalProps() sorts each disposal row into one of three types,
+        //  and ProcessRetirementToDisposal() applies every row of a pool to the
+        //  whole pool, so a pool takes rows of one type only:
+        //    3: straight to gases (respiration -99); proportions add to 1;
+        //    2: decays as a whole (to 2999); one row, proportion 1;
+        //    1: a degradable share moves into a decaying pool, the rest stays;
+        //       one row, share above 0 and at most 1.
+        private void CheckDisposalRows(InputParameters parameters, List<string> problems)
+        {
+            foreach (RetirementToDisposal entry in parameters.ListRetireDisposal.ListRetirementToDisposal)
+            {
+                List<TableRow> rows = new List<TableRow>();
+                foreach (TableRow row in tableRows)
+                    if (row.Table == Names.RetirementToDisposal && row.Year == entry.BeginTime && row.From == entry.Pool)
+                        rows.Add(row);
+                string where = string.Format("{0}, {1}: pool {2} ({3}) from year {4}",
+                    Names.RetirementToDisposal, LineList(rows), entry.Pool, rows.Count > 0 ? rows[0].FromName : "", entry.BeginTime);
+
+                int[] count = new int[4];
+                double gasTotal = 0;
+                foreach (DisposalProp dp in entry.GetDisposalList())
+                {
+                    count[dp.RetireType] += 1;
+                    if (dp.RetireType == 3)
+                        gasTotal += dp.PropDecay;
+                }
+                int types = (count[1] > 0 ? 1 : 0) + (count[2] > 0 ? 1 : 0) + (count[3] > 0 ? 1 : 0);
+                if (types > 1)
+                {
+                    problems.Add(where + " mixes rows that go straight to gases, decay the whole pool, or move a share into a decaying pool. FPSM applies each row to the whole pool, so a mix counts its carbon twice. Use rows of one kind.");
+                    continue;
+                }
+
+                foreach (DisposalProp dp in entry.GetDisposalList())
+                {
+                    if (dp.RetireType == 3 && System.Array.IndexOf(Gases, dp.FinalPool) < 0)
+                        problems.Add(string.Format("{0} goes straight to {1}, which is not a gas: rows with respiration -99 go to 2006 (E_CO2) or 2007 (E_CH4).", where, dp.FinalPool));
+                    if ((dp.RetireType == 1 || dp.RetireType == 2) && dp.HalfLife <= 0)
+                        problems.Add(string.Format("{0} decays with a half-life of {1}; it must be above 0.", where, dp.HalfLife));
+                    if (dp.RetireType == 1 && System.Array.IndexOf(DecayingPools, dp.FinalPool) < 0)
+                        problems.Add(string.Format("{0} moves its degradable share into {1}, which FPSM cannot decay, so that carbon would be lost. Decaying pools are 1000, 1001, 1003, 1009 and 1010.", where, dp.FinalPool));
+                    if (dp.RetireType == 1 && dp.PropDecay > 1)
+                        problems.Add(string.Format("{0} moves a degradable share of {1} into {2}; a share is at most 1.", where, dp.PropDecay, dp.FinalPool));
+                }
+                if (count[3] > 0 && (gasTotal <= 0.9999 || gasTotal >= 1.0001))
+                    problems.Add(string.Format("{0}: the proportions going to gases add to {1}, not 1, so the rest would be lost.", where, gasTotal));
+                if (count[2] > 0)
+                {
+                    DisposalProp dp = entry.GetDisposalList()[0];
+                    if (System.Array.IndexOf(DecayingPools, entry.Pool) < 0)
+                        problems.Add(string.Format("{0} decays as a whole, but FPSM can decay only pools 1000, 1001, 1003, 1009 and 1010, so its carbon would be lost.", where));
+                    else if (count[2] > 1 || dp.PropDecay <= 0.9999 || dp.PropDecay >= 1.0001)
+                        problems.Add(string.Format("{0} decays as a whole, so it takes one row to {1} with proportion 1: FPSM ignores the proportion and decays all of the pool.", where, DecaysAsWhole));
+                }
+                if (count[1] > 1)
+                    problems.Add(string.Format("{0} moves a share into {1} decaying pools. FPSM keeps the rest of the pool undecayed once for each row, so it would count that part {1} times. Use one row.", where, count[1]));
+            }
+        }
+
+        //  FPSM matches everything by code; the name columns are for people only.
+        //  A name that disagrees with its code is therefore a sign that a row
+        //  sends carbon somewhere other than intended (as in a configuration
+        //  where pool 1004, LandfillPaper, was named DumpWood). Each code must
+        //  keep one name throughout, in every table including Substitution. A
+        //  fixed code (1000 and above) may be renamed, but not to the Table 1
+        //  name of another fixed code.
+        private void CheckNames(List<string> warnings)
+        {
+            List<string[]> uses = new List<string[]>();  //  kind, code, name, table, line, role
+            foreach (TableRow row in tableRows)
+            {
+                if (row.Table != Names.ForestToMill)
+                    AddNameUse(uses, row, row.From, row.FromName, FromRole(row));
+                AddNameUse(uses, row, row.To, row.ToName, ToRole(row));
+            }
+
+            Dictionary<string, string[]> first = new Dictionary<string, string[]>();
+            HashSet<string> reported = new HashSet<string>();
+            foreach (string[] use in uses)
+            {
+                string key = use[0] + "|" + use[1];
+                if (!first.ContainsKey(key))
+                {
+                    first[key] = use;
+                    continue;
+                }
+                string[] was = first[key];
+                if (NameKey(was[2]) == NameKey(use[2]) || !reported.Add(key))
+                    continue;
+                string shared = was[5] != use[5]
+                    ? " Mills and primary products share codes: a primary product with a mill's code goes back through that mill."
+                    : "";
+                warnings.Add(string.Format("{0}, line {1}: {2} {3} is named \"{4}\" here but \"{5}\" in {6}, line {7}. FPSM matches by code only, so check which one this row means.{8}",
+                    use[3], use[4], use[5], use[1], use[2], was[2], was[3], was[4], shared));
+            }
+
+            foreach (string[] use in uses)
+            {
+                int code = int.Parse(use[1]);
+                if (code < FirstSpecialCode)
+                    continue;
+                foreach (KeyValuePair<int, string> fixedName in FixedNames)
+                {
+                    if (fixedName.Key != code && NameKey(fixedName.Value) == NameKey(use[2])
+                        && reported.Add("fixed|" + use[1] + "|" + use[2]))
+                    {
+                        string own;
+                        if (!FixedNames.TryGetValue(code, out own))
+                            own = "not in Table 1";
+                        warnings.Add(string.Format("{0}, line {1}: pool {2} is named \"{3}\", the user guide's name for pool {4}. Codes of 1000 and above have fixed meanings ({2} is {5}), so this row sends carbon to {2}, not {4}.",
+                            use[3], use[4], code, use[2], fixedName.Key, own));
+                    }
+                }
+            }
+        }
+
+        //  Codes are matched within a kind: mills and primary products share
+        //  one set of codes, markets and secondary products have their own, and
+        //  codes of 1000 and above are FPSM's fixed pools wherever they appear.
+        private static void AddNameUse(List<string[]> uses, TableRow row, int code, string name, string role)
+        {
+            //  2999 is not a pool (the user guide names it "N/A").
+            if (code == DecaysAsWhole || name == null || name.Trim().Length == 0)
+                return;
+            string kind = code >= FirstSpecialCode ? "pool"
+                : role == "market" ? "market"
+                : role == "secondary product" ? "secondary product"
+                : "mill or primary product";
+            uses.Add(new string[] { kind, code.ToString(), name.Trim(), row.Table, row.Line.ToString(), code >= FirstSpecialCode ? "pool" : role });
+        }
+
+        private static string FromRole(TableRow row)
+        {
+            if (row.Table == Names.MilltoPrimary) return "mill";
+            if (row.Table == Names.PrimarytoMarket || row.Table == Names.PrimaryToSecond || row.Table == Names.Substitution) return "primary product";
+            if (row.Table == Names.SecondToRetirement) return "secondary product";
+            return "pool";
+        }
+
+        private static string ToRole(TableRow row)
+        {
+            if (row.Table == Names.ForestToMill) return "mill";
+            if (row.Table == Names.MilltoPrimary) return "primary product";
+            if (row.Table == Names.PrimarytoMarket) return "market";
+            if (row.Table == Names.PrimaryToSecond || row.Table == Names.SecondToRetirement) return "secondary product";
+            return "pool";
+        }
+
+        //  Names compare without case or surrounding space; the guide spells
+        //  1009 and 1010 "Degradeable", the shipped examples "Degradable".
+        private static string NameKey(string name)
+        {
+            return name.Trim().ToLowerInvariant().Replace("degradeable", "degradable");
+        }
+
         private static bool NeverReceivesCarbon(TableRow row)
         {
             return row.From >= FirstSpecialCode

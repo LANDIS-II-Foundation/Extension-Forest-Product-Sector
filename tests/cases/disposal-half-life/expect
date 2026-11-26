@@ -1,0 +1,3 @@
+# SimpleTier1 with DumpWood (1001) decaying with a half-life of 0.
+exit_zero: no
+stdout_contains: pool 1001 (DumpWood) from year 0 decays with a half-life of 0; it must be above 0

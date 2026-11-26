@@ -1,0 +1,5 @@
+# SimpleTier1 with LandfillPaper (1004) decaying as a whole, as in a configuration
+# sent on 11 November. FPSM cannot decay 1004 directly: each year logged "No
+# predefined rules for this combination exist" and its carbon was lost.
+exit_zero: no
+stdout_contains: pool 1004 (LandfillPaper) from year 0 decays as a whole, but FPSM can decay only pools 1000, 1001, 1003, 1009 and 1010
